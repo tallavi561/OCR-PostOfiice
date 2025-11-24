@@ -28,8 +28,8 @@ namespace CameraAnalyzer.Controllers
         public async Task<IActionResult> StartProcess()
         {
             Logger.LogInfo("Start process is starting.");
-            string result = await _PackagesAnalysisWorkflow.AnalyzeImageAsync();
-            return Ok("Process Finished " + result);
+            var result = await _PackagesAnalysisWorkflow.AnalyzeImageAsync();
+            return Ok(result);
         }
     }
 }
