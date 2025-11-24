@@ -9,7 +9,7 @@ builder.Services.AddSwaggerGen();
 
 // Gemini API
 builder.Services.AddSingleton<GeminiAPI>();
-builder.Services.AddScoped<IGeminiService, GeminiService>();
+// builder.Services.AddScoped<IGeminiService, GeminiService>();
 
 // Google Vision API – חובה!
 builder.Services.AddHttpClient<GoogleVisionAPI>();

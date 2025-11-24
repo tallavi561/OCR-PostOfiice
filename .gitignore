@@ -64,3 +64,5 @@ nunit-*.xml
 Post-Office--OCR-test-master/
 
 .fake
+
+cropped_outputs/
