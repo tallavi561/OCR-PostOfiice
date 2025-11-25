@@ -8,7 +8,7 @@ namespace CameraAnalyzer.bl.Services.PackagesAnalysis.WorkFlow
 {
       public interface IPackagesAnalysisWorkflow
       {
-            Task<List<PackageDetails>> AnalyzeImageAsync();
+            Task<List<PackageDetails>> AnalyzeImagesAsync(List<string> imagePaths);
       }
       public class PackagesAnalysisWorkflow : IPackagesAnalysisWorkflow
       {
@@ -25,7 +25,7 @@ namespace CameraAnalyzer.bl.Services.PackagesAnalysis.WorkFlow
                   _output = new WorkflowOutputService();
             }
 
-            public async Task<List<PackageDetails>> AnalyzeImageAsync()
+            public async Task<List<PackageDetails>> AnalyzeImagesAsync(List<string> imagePaths)
             {
                   string imagePath = "./three.png";
 

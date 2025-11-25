@@ -30,5 +30,43 @@ namespace CameraAnalyzer.bl.Services.FtpPolling
                     .ToList();
             }
         }
+        public async Task<List<string>> DownloadFolderAsync(string folderName)
+        {
+            var localFolder = Path.Combine("appdata", "ftp_downloads", folderName);
+
+            Directory.CreateDirectory(localFolder);
+
+            List<string> downloadedFiles = new List<string>();
+
+            using (var client = new AsyncFtpClient(_host, _user, _pass))
+            {
+                await client.Connect();
+
+                string remoteFolderPath = "/" + folderName;
+
+                var items = await client.GetListing(remoteFolderPath);
+
+                foreach (var item in items)
+                {
+                    if (item.Type == FtpObjectType.File)
+                    {
+                        string ext = Path.GetExtension(item.Name).ToLower();
+                        if (ext != ".png" && ext != ".jpg" && ext != ".jpeg")
+                            continue;
+
+                        string localPath = Path.Combine(localFolder, item.Name);
+
+                        var status = await client.DownloadFile(localPath, item.FullName);
+
+                        if (status == FtpStatus.Success)
+                        {
+                            downloadedFiles.Add(localPath);
+                        }
+                    }
+                }
+            }
+
+            return downloadedFiles;
+        }
     }
 }
