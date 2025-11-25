@@ -1,10 +1,10 @@
 
 using CameraAnalyzer.bl.Utils;
-using CameraAnalyzer.bl.Services.MiddleServices;
+using CameraAnalyzer.bl.Services.PackagesAnalysis.MiddleServices;
 using CameraAnalyzer.bl.APIs;
 using CameraAnalyzer.bl.Models;
 
-namespace CameraAnalyzer.bl.Services
+namespace CameraAnalyzer.bl.Services.PackagesAnalysis.WorkFlow
 {
       public interface IPackagesAnalysisWorkflow
       {

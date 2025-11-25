@@ -1,7 +1,7 @@
 using CameraAnalyzer.bl.APIs;
 using CameraAnalyzer.bl.Utils;
 
-namespace CameraAnalyzer.bl.Services.MiddleServices
+namespace CameraAnalyzer.bl.Services.PackagesAnalysis.MiddleServices
 {
       public class GeminiLabelService
       {

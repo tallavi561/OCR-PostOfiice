@@ -1,7 +1,7 @@
 using System.Text.Json;
 using CameraAnalyzer.bl.Models;
 
-namespace CameraAnalyzer.bl.Services.MiddleServices
+namespace CameraAnalyzer.bl.Services.PackagesAnalysis.MiddleServices
 {
     public class WorkflowOutputService
     {
