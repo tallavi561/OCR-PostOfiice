@@ -1,10 +1,10 @@
 using Microsoft.Extensions.Hosting;
-using CameraAnalyzer.bl.Services.FtpPolling.Interfaces;
 using CameraAnalyzer.bl.Services.PackagesAnalysis.WorkFlow;
 using CameraAnalyzer.bl.Utils;
 
-namespace CameraAnalyzer.bl.Services.FtpPolling.Workers
+namespace CameraAnalyzer.bl.Services.FtpPolling.WorkFlow
 {
+
     public class FtpPollingBackgroundService : BackgroundService
     {
         private readonly IFtpPollingService _ftpPolling;
@@ -40,7 +40,6 @@ namespace CameraAnalyzer.bl.Services.FtpPolling.Workers
                             _knownFolders.Add(folder);
                             Logger.LogInfo($"[FTP] New folder detected: {folder}");
 
-                            // ⬇️ שלב 1: הורד את כל הקבצים מהתיקייה המרוחקת לנתיב לוקאלי
                             var localImagePaths = await _ftpPolling.DownloadFolderAsync(folder);
 
                             if (localImagePaths.Count == 0)
@@ -49,8 +48,8 @@ namespace CameraAnalyzer.bl.Services.FtpPolling.Workers
                                 continue;
                             }
 
-                            // ⬇️ שלב 2: העבר את רשימת הקבצים ל-Workflow
-                            await _workflow.AnalyzeImagesAsync(localImagePaths);
+                            var properties = await _workflow.AnalyzeImagesAsync(localImagePaths);
+                            Logger.LogInfo($"[FTP] Analysis complete for folder '{folder}'. Results  .... ");
                         }
                     }
                 }

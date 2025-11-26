@@ -1,8 +1,7 @@
 using CameraAnalyzer.bl.APIs;
 using CameraAnalyzer.bl.Services.PackagesAnalysis.WorkFlow;
 using CameraAnalyzer.bl.Services.FtpPolling;
-using CameraAnalyzer.bl.Services.FtpPolling.Interfaces;
-using CameraAnalyzer.bl.Services.FtpPolling.Workers;
+using CameraAnalyzer.bl.Services.FtpPolling.WorkFlow;
 
 var builder = WebApplication.CreateBuilder(args);
 

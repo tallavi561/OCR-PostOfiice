@@ -190,7 +190,6 @@ namespace CameraAnalyzer.bl.APIs
         private readonly string _apiKey;
         private readonly HttpClient _httpClient;
 
-        // לפי התיעוד העדכני: v1beta/models/{model}:generateContent
         private const string BaseUrl = "https://generativelanguage.googleapis.com/v1beta/models";
         private const string ModelName = "gemini-2.0-flash";
 

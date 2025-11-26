@@ -25,28 +25,45 @@ namespace CameraAnalyzer.bl.Services.PackagesAnalysis.WorkFlow
                   _output = new WorkflowOutputService();
             }
 
-            public async Task<List<PackageDetails>> AnalyzeImagesAsync(List<string> imagePaths)
+            public async Task<List<PackageDetails>> AnalyzeImagesAsync(List<string> imagesPaths)
             {
-                  string imagePath = "./three.png";
+                  var allPackages = new List<PackageDetails>();
 
-                  // 1) Detect
-                  var boxes = await _detector.DetectAsync(imagePath);
-                  if (boxes.Count == 0)
-                        return new List<PackageDetails>();
-
-                  // 2) Crop
-                  var crops = _cropper.CropAll(imagePath, boxes);
-
-                  // 3) Analyze w/ Gemini
-                  var geminiResults = await _gemini.AnalyzeAllAsync(crops);
-
-                  foreach (var result in geminiResults)
+                  // Create a list of Tasks to process all images in parallel
+                  var tasks = imagesPaths.Select(async imagePath =>
                   {
-                        Logger.LogInfo("Gemini Result: " + result);
-                  }
-                  // 4) Output JSON
-                  return _output.BuildJson(geminiResults);
+                        Logger.LogInfo("Processing image: " + imagePath);
+
+                        // 1) Detect packages in the image
+                        var detectedBoxes = await _detector.DetectPackagesAsync(imagePath);
+                        if (detectedBoxes.Count == 0)
+                        {
+                              // No packages found → return empty list for this image
+                              return new List<PackageDetails>();
+                        }
+
+                        // 2) Crop all detected packages
+                        var imageCrops = _cropper.CropAll(imagePath, detectedBoxes);
+
+                        // 3) Analyze all crops using Gemini
+                        var geminiAnalysis = await _gemini.AnalyzeAllPropertiesAsync(imageCrops);
+
+                        // Build the JSON result for this image
+                        var resultForImage = _output.BuildJson(geminiAnalysis);
+
+                        return resultForImage;
+                  });
+
+                  // Wait for all image-processing tasks to finish in parallel
+                  var results = await Task.WhenAll(tasks);
+
+                  // Flatten all results into a single list
+                  foreach (var r in results)
+                        allPackages.AddRange(r);
+
+                  return allPackages;
             }
+
       }
 }
 

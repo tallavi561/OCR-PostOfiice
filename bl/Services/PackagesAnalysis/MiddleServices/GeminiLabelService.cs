@@ -12,7 +12,7 @@ namespace CameraAnalyzer.bl.Services.PackagesAnalysis.MiddleServices
                   _gemini = gemini;
             }
 
-            private string GetPrompt()
+            private static string GetPropertiesPrompt()
             {
                   return string.Join("\n", new[]
                   {
@@ -64,13 +64,13 @@ namespace CameraAnalyzer.bl.Services.PackagesAnalysis.MiddleServices
             }
 
 
-            public async Task<List<string>> AnalyzeAllAsync(List<string> cropPaths)
+            public async Task<List<string>> AnalyzeAllPropertiesAsync(List<string> cropPaths)
             {
                   var tasks = cropPaths.Select(async path =>
                   {
                         try
                         {
-                              var result = await _gemini.AnalyzeImageFromStorageAsync(path, GetPrompt());
+                              var result = await _gemini.AnalyzeImageFromStorageAsync(path, GetPropertiesPrompt());
                               return result;
                         }
                         catch (Exception ex)
@@ -84,7 +84,7 @@ namespace CameraAnalyzer.bl.Services.PackagesAnalysis.MiddleServices
 
                   List<string> cleaned = rawResults
                       .Where(r => r is not null)
-                      .Select(r => r!)         // ה־! אומר לקומפיילר: בשלב הזה זה בטוח לא null
+                      .Select(r => r!)   
                       .ToList();
 
                   return cleaned;

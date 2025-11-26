@@ -1,8 +1,14 @@
 using FluentFTP;
-using CameraAnalyzer.bl.Services.FtpPolling.Interfaces;
+using CameraAnalyzer.bl.Services.FtpPolling.WorkFlow;
 
 namespace CameraAnalyzer.bl.Services.FtpPolling
 {
+        public interface IFtpPollingService
+    {
+        Task<List<string>> DownloadFolderAsync(string folderName);
+
+        Task<IEnumerable<string>> GetCurrentFoldersAsync();
+    }
     public class FtpPollingService : IFtpPollingService
     {
         private readonly string _host;

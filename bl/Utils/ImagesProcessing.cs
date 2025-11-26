@@ -48,7 +48,7 @@ namespace CameraAnalyzer.bl.Utils
                         Directory.CreateDirectory(directory);
 
                     image.Save(newFilePath);
-                    Logger.LogInfo($"Cropped image saved successfully: {newFilePath}");
+                    // Logger.LogInfo($"Cropped image saved successfully: {newFilePath}");
                 }
             }
             catch (Exception ex)

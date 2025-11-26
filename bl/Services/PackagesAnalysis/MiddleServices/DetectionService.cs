@@ -13,7 +13,7 @@ namespace CameraAnalyzer.bl.Services.PackagesAnalysis.MiddleServices
                   _aiDetector = new AiDetectorAPI();
             }
 
-            public async Task<List<BoundingBox>> DetectAsync(string imagePath)
+            public async Task<List<BoundingBox>> DetectPackagesAsync(string imagePath)
             {
                   Logger.LogInfo("Detecting packages...");
                   var boxes = await _aiDetector.Detect(imagePath);
