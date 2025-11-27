@@ -3,7 +3,7 @@ using CameraAnalyzer.bl.Services.FtpPolling.WorkFlow;
 
 namespace CameraAnalyzer.bl.Services.FtpPolling
 {
-        public interface IFtpPollingService
+    public interface IFtpPollingService
     {
         Task<List<string>> DownloadFolderAsync(string folderName);
 
@@ -17,9 +17,9 @@ namespace CameraAnalyzer.bl.Services.FtpPolling
 
         public FtpPollingService(IConfiguration config)
         {
-            _host = config["FtpConfig:Host"];
-            _user = config["FtpConfig:User"];
-            _pass = config["FtpConfig:Password"];
+            _host = config["FtpConfig:Host"]!;
+            _user = config["FtpConfig:User"]!;
+            _pass = config["FtpConfig:Password"]!;
         }
 
         public async Task<IEnumerable<string>> GetCurrentFoldersAsync()
