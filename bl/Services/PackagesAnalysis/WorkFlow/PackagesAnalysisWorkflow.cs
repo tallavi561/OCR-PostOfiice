@@ -17,12 +17,17 @@ namespace CameraAnalyzer.bl.Services.PackagesAnalysis.WorkFlow
             private readonly GeminiLabelService _gemini;
             private readonly WorkflowOutputService _output;
 
-            public PackagesAnalysisWorkflow(GoogleVisionAPI vision, GeminiAPI gemini)
+            // All dependencies are injected from DI
+            public PackagesAnalysisWorkflow(
+                DetectionService detector,
+                CroppingService cropper,
+                GeminiLabelService geminiLabelService,
+                WorkflowOutputService output)
             {
-                  _detector = new DetectionService();
-                  _cropper = new CroppingService();
-                  _gemini = new GeminiLabelService(gemini);
-                  _output = new WorkflowOutputService();
+                  _detector = detector;
+                  _cropper = cropper;
+                  _gemini = geminiLabelService;
+                  _output = output;
             }
 
             public async Task<List<PackageDetails>> AnalyzeImagesAsync(List<string> imagesPaths)

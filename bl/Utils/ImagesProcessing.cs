@@ -9,6 +9,7 @@ namespace CameraAnalyzer.bl.Utils
 {
     public static class ImagesProcessing
     {
+        // Crop image given coordinates and save to new file.
         public static void CropAndSaveImage(int X1, int Y1, int X2, int Y2, string originalFilePath, string newFilePath, float confidence = 1.0f)
         {
             try
@@ -57,9 +58,7 @@ namespace CameraAnalyzer.bl.Utils
             }
         }
 
-        /// <summary>
         /// Load image and convert to Base64 string.
-        /// </summary>
         public static async Task<string> ConvertImageToBase64(string imagePath)
         {
             if (!File.Exists(imagePath))
