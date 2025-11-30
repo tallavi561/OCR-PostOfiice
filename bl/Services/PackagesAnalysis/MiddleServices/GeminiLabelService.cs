@@ -6,6 +6,7 @@ namespace CameraAnalyzer.bl.Services.PackagesAnalysis.MiddleServices
       public class GeminiLabelService
       {
             private readonly GeminiAPI _gemini;
+            // private readonly GoogleVisionAPI 
 
             public GeminiLabelService(GeminiAPI gemini)
             {

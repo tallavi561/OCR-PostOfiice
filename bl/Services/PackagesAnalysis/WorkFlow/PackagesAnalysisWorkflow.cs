@@ -65,7 +65,8 @@ namespace CameraAnalyzer.bl.Services.PackagesAnalysis.WorkFlow
                   // Flatten all results into a single list
                   foreach (var r in results)
                         allPackages.AddRange(r);
-
+                  Logger.LogInfo($"Total packages analyzed from all images: {allPackages.Count}");
+                  Logger.LogDebug("Packages details: " + System.Text.Json.JsonSerializer.Serialize(allPackages));
                   return allPackages;
             }
 
