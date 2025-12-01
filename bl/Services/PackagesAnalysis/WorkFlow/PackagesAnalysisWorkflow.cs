@@ -48,7 +48,7 @@ namespace CameraAnalyzer.bl.Services.PackagesAnalysis.WorkFlow
                         }
 
                         // 2) Crop all detected packages
-                        var imageCrops = _cropper.CropAll(imagePath, detectedBoxes);
+                        var imageCrops = _cropper.GetCroppetImages(imagePath, detectedBoxes);
 
                         // 3) Analyze all crops using Gemini
                         var geminiAnalysis = await _gemini.AnalyzeAllPropertiesAsync(imageCrops);

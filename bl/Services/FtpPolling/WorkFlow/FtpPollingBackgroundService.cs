@@ -64,7 +64,9 @@ namespace CameraAnalyzer.bl.Services.FtpPolling.WorkFlow
                                 }
 
                                 var properties = await _workflow.AnalyzeImagesAsync(localImagePaths);
+                                await _ftpPolling.DeleteFolderImagesAsync(folder);
 
+                                Logger.LogInfo($"[FTP] Deleted images for folder '{folder}'.");
                                 Logger.LogInfo($"[FTP] Analysis complete for folder '{folder}'.");
                             }
                             catch (Exception ex)
@@ -86,5 +88,6 @@ namespace CameraAnalyzer.bl.Services.FtpPolling.WorkFlow
                 await Task.Delay(5000, stoppingToken);
             }
         }
+
     }
 }
