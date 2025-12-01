@@ -77,37 +77,33 @@
 using System;
 using System.IO;
 using System.Threading.Tasks;
+using System.Collections.Generic;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
-using SixLabors.ImageSharp.Drawing.Processing;
 using SixLabors.ImageSharp.Processing;
+using SixLabors.ImageSharp.Drawing.Processing;
+// using SixLabors.ImageSharp.Drawing;
+using CameraAnalyzer.bl.Models;
 
 namespace CameraAnalyzer.bl.Utils
 {
     public static class ImagesProcessing
     {
-        /// <summary>
-        /// Crop an area from an image and save it. Optionally also save the full original image with a bounding box.
-        /// </summary>
-        public static void CropAndSaveImage(
-            int X1, int Y1, int X2, int Y2,
-            string originalFilePath,
-            string newFilePath,
-            bool saveMarkedImage = false)
+        // Crop image given coordinates and save to new file.
+        public static void CropAndSaveImage(int X1, int Y1, int X2, int Y2, string originalFilePath, string newFilePath, bool saveMarkedImage = false)
         {
             try
             {
-                // Check input image exists
                 if (!File.Exists(originalFilePath))
                 {
                     Logger.LogError($"Original image not found: {originalFilePath}");
                     return;
                 }
 
-                using (Image<Rgba32> originalImage = Image.Load<Rgba32>(originalFilePath))
+                using (Image<Rgba32> image = Image.Load<Rgba32>(originalFilePath))
                 {
-                    int imgW = originalImage.Width;
-                    int imgH = originalImage.Height;
+                    int imgW = image.Width;
+                    int imgH = image.Height;
 
                     // Clamp coordinates safely
                     X1 = Math.Clamp(X1, 0, imgW - 1);
@@ -115,48 +111,24 @@ namespace CameraAnalyzer.bl.Utils
                     X2 = Math.Clamp(X2, 0, imgW);
                     Y2 = Math.Clamp(Y2, 0, imgH);
 
+                    // Ensure X1 < X2, Y1 < Y2
                     if (X2 <= X1 || Y2 <= Y1)
                     {
-                        Logger.LogError($"Invalid crop rectangle ({X1},{Y1},{X2},{Y2}).");
+                        Logger.LogError($"Invalid crop box after clamping ({X1},{Y1},{X2},{Y2}).");
                         return;
                     }
 
                     int width = X2 - X1;
                     int height = Y2 - Y1;
+
                     var cropRectangle = new Rectangle(X1, Y1, width, height);
+                    image.Mutate(ctx => ctx.Crop(cropRectangle));
 
-                    // ---------------- Save cropped image ----------------
-                    using (Image<Rgba32> cropped = originalImage.Clone(ctx => ctx.Crop(cropRectangle)))
-                    {
-                        string? dir = System.IO.Path.GetDirectoryName(newFilePath);
-                        if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
-                            Directory.CreateDirectory(dir);
+                    string? directory = System.IO.Path.GetDirectoryName(newFilePath);
+                    if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+                        Directory.CreateDirectory(directory);
 
-                        cropped.Save(newFilePath);
-                    }
-
-                    // ---------------- Save marked full image ----------------
-                    if (saveMarkedImage)
-                    {
-                        string markedPath = BuildMarkedImagePath(originalFilePath);
-
-                        string markedDir = System.IO.Path.GetDirectoryName(markedPath)!;
-                        if (!Directory.Exists(markedDir))
-                            Directory.CreateDirectory(markedDir);
-
-                        // Draw bounding box on original image
-                        originalImage.Mutate(ctx =>
-                        {
-                            ctx.Draw(
-                                color: Color.Red,
-                                thickness: 10,
-                                shape: new Rectangle(X1, Y1, width, height)
-                            );
-                        });
-
-                        originalImage.Save(markedPath);
-                        Logger.LogInfo($"Marked image saved: {markedPath}");
-                    }
+                    image.Save(newFilePath);
                 }
             }
             catch (Exception ex)
@@ -165,22 +137,7 @@ namespace CameraAnalyzer.bl.Utils
             }
         }
 
-        /// <summary>
-        /// Build output path for the marked (full) image: stored in /detected_objects/
-        /// </summary>
-        private static string BuildMarkedImagePath(string originalFilePath)
-        {
-            string baseDir = System.IO.Path.Combine(AppContext.BaseDirectory, "detected_objects");
-
-            string fileName = System.IO.Path.GetFileNameWithoutExtension(originalFilePath);
-            string ext = System.IO.Path.GetExtension(originalFilePath);
-
-            return System.IO.Path.Combine(baseDir, $"{fileName}_marked{ext}");
-        }
-
-        /// <summary>
         /// Load image and convert to Base64 string.
-        /// </summary>
         public static async Task<string> ConvertImageToBase64(string imagePath)
         {
             if (!File.Exists(imagePath))
@@ -190,8 +147,69 @@ namespace CameraAnalyzer.bl.Utils
             await using var memoryStream = new MemoryStream();
 
             await fileStream.CopyToAsync(memoryStream);
+            string base64Image = Convert.ToBase64String(memoryStream.ToArray());
 
-            return Convert.ToBase64String(memoryStream.ToArray());
+            return base64Image;
         }
+
+        // ------------------------- NEW FUNCTION ---------------------------
+
+        /// <summary>
+        /// Draw bounding boxes on an image and save to output path.
+        /// </summary>
+        public static void DrawBoundingBoxes(
+                    List<BoundingBox> boxes,
+                    string originalFilePath,
+                    string outputFilePath)
+        {
+            try
+            {
+                if (!File.Exists(originalFilePath))
+                {
+                    Logger.LogError($"Original image not found: {originalFilePath}");
+                    return;
+                }
+
+                using (Image<Rgba32> image = Image.Load<Rgba32>(originalFilePath))
+                {
+                    int imgW = image.Width;
+                    int imgH = image.Height;
+
+                    foreach (var box in boxes)
+                    {
+                        // Clamp coordinates safely
+                        int x1 = Math.Clamp(box.X1, 0, imgW - 1);
+                        int y1 = Math.Clamp(box.Y1, 0, imgH - 1);
+                        int x2 = Math.Clamp(box.X2, 0, imgW - 1);
+                        int y2 = Math.Clamp(box.Y2, 0, imgH - 1);
+
+                        int width = x2 - x1;
+                        int height = y2 - y1;
+
+                        if (width <= 0 || height <= 0)
+                            continue;
+
+                        var rect = new Rectangle(x1, y1, width, height);
+
+                        // Draw with thickness = 4px
+                        image.Mutate(ctx =>
+                        {
+                            ctx.Draw(SixLabors.ImageSharp.Color.Red, 4, rect);
+                        });
+                    }
+
+                    string? directory = System.IO.Path.GetDirectoryName(outputFilePath);
+                    if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+                        Directory.CreateDirectory(directory);
+
+                    image.Save(outputFilePath);
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError($"DrawBoundingBoxes failed: {ex.Message}");
+            }
+        }
+
     }
 }
