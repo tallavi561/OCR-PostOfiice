@@ -4,6 +4,8 @@ using System.Text;
 using System.Text.Json;
 using CameraAnalyzer.bl.Models;
 using CameraAnalyzer.bl.Utils;
+using System.Text.Json.Serialization;
+
 
 namespace CameraAnalyzer.bl.APIs
 {
@@ -50,12 +52,16 @@ namespace CameraAnalyzer.bl.APIs
             Logger.LogInfo($"Received {serverResponse.Detections.Count} detections from AI Detector API.");
 
             return serverResponse.Detections;
+            // return [];
         }
     }
 
     public class DetectResponse
     {
+        [JsonPropertyName("detections")]
         public List<BoundingBox> Detections { get; set; }
+
+        [JsonPropertyName("message")]
         public string Message { get; set; }
     }
 }
