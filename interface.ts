@@ -22,3 +22,16 @@ interface PackageDetails {
       date: string;
       contentDescription: string[];
 }
+
+interface Attachment {
+      path: string;
+      filename: string;
+      typeId: string;
+      documentFormat: string
+}
+
+interface PackageResponse {
+      eventId: string;
+      attachments: Attachment[];
+      packageDetails: PackageDetails;
+}

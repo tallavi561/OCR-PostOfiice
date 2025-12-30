@@ -13,19 +13,19 @@ namespace CameraAnalyzer.bl.Services.PackagesAnalysis.WorkFlow
       public class PackagesAnalysisWorkflow : IPackagesAnalysisWorkflow
       {
             private readonly DetectionService _detector;
-            private readonly CroppingService _cropper;
+            // private readonly CroppingService _cropper;
             private readonly GeminiLabelService _gemini;
             private readonly WorkflowOutputService _output;
 
             // All dependencies are injected from DI
             public PackagesAnalysisWorkflow(
                 DetectionService detector,
-                CroppingService cropper,
+            //     CroppingService cropper,
                 GeminiLabelService geminiLabelService,
                 WorkflowOutputService output)
             {
                   _detector = detector;
-                  _cropper = cropper;
+                  // _cropper = cropper;
                   _gemini = geminiLabelService;
                   _output = output;
             }
@@ -49,7 +49,7 @@ namespace CameraAnalyzer.bl.Services.PackagesAnalysis.WorkFlow
 
                         // 2) Crop all detected packages
                         ImagesProcessing.DrawBoundingBoxes(detectedBoxes, imagePath, $"./marked/{imagePath}");
-                        var imageCrops = _cropper.GetCroppetImages(imagePath, detectedBoxes);
+                        // var imageCrops = _cropper.GetCroppetImages(imagePath, detectedBoxes);
 
                         // 3) Analyze all crops using Gemini
                         // var geminiAnalysis = await _gemini.AnalyzeAllPropertiesAsync(imageCrops);

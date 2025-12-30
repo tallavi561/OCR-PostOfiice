@@ -19,7 +19,7 @@ builder.Services.AddHttpClient<AiDetectorAPI>(client =>
 builder.Services.AddHttpClient<AiDetectorAPI>();
 
 builder.Services.AddSingleton<DetectionService>();
-builder.Services.AddSingleton<CroppingService>();
+// builder.Services.AddSingleton<CroppingService>();
 builder.Services.AddSingleton<GeminiLabelService>();
 builder.Services.AddSingleton<WorkflowOutputService>();
 
