@@ -31,6 +31,9 @@ namespace CameraAnalyzer.bl.Services.FtpPolling.WorkFlow
             {
                 try
                 {
+                    // Step 1: get delivery company name
+                    string deliveryCompanyName = "DHL";
+
                     // Step 1: Find all current folders
                     var folders = await _ftpPolling.GetCurrentFoldersAsync();
 
@@ -56,15 +59,15 @@ namespace CameraAnalyzer.bl.Services.FtpPolling.WorkFlow
                             {
                                 Logger.LogInfo($"[TASK] Start processing folder: {folder}");
 
-                                var localImagePaths = await _ftpPolling.DownloadFolderAsync(folder);
-                                if (localImagePaths.Count == 0)
+                                var localImagesPaths = await _ftpPolling.DownloadFolderAsync(folder);
+                                if (localImagesPaths.Count == 0)
                                 {
                                     Logger.LogInfo($"[FTP] Folder '{folder}' contained no images.");
                                     return;
                                 }
 
-                                var properties = await _workflow.AnalyzeImagesAsync(localImagePaths);
-                                await _ftpPolling.DeleteFolderImagesAsync(folder);
+                                await _ftpPolling.DeleteFolderAndContentsAsync(folder);
+                                var properties = await _workflow.AnalyzeImagesAsync(localImagesPaths, deliveryCompanyName);
 
                                 Logger.LogInfo($"[FTP] Deleted images for folder '{folder}'.");
                                 Logger.LogInfo($"[FTP] Analysis complete for folder '{folder}'.");

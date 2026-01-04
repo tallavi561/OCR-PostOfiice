@@ -265,15 +265,14 @@ namespace CameraAnalyzer.bl.APIs
         // ===============================================================
         // IMAGE FILE → BASE64 → PROMPT
         // ===============================================================
-        public async Task<string?> AnalyzeImageFromStorageAsync(
-            string imagePath, string prompt, string mimeType = "image/jpeg")
+        public async Task<string?> AnalyzeImageFromBytesAsync(
+            byte[] imageToAnalyze, string prompt, string mimeType = "image/jpeg")
         {
-            if (!File.Exists(imagePath))
-                throw new FileNotFoundException("Image not found.", imagePath);
 
-            string base64 = await ImagesProcessing.ConvertImageToBase64(imagePath);
 
-            string? geminiResponse =  await AnalyzeImageAsync(base64, prompt, mimeType);
+            var base64 = ImagesProcessing.ConvertImageToBase64(imageToAnalyze);
+
+            string? geminiResponse = await AnalyzeImageAsync(base64, prompt, mimeType);
             if (geminiResponse == null)
             {
                 Logger.LogError("Gemini API returned no response.");
@@ -353,20 +352,6 @@ namespace CameraAnalyzer.bl.APIs
             }
         }
 
-        // ===============================================================
-        // Example prompt (unused here)
-        // ===============================================================
-        private string GetPrompt()
-        {
-            string[] lines =
-            {
-                "Analyze this shipping label image.",
-                "Extract 'ship to' and 'ship from' details as JSON.",
-                "If multiple labels exist, return an array.",
-                "Missing values should be null.",
-                "Return JSON only."
-            };
-            return string.Join("\n", lines);
-        }
+
     }
 }

@@ -5,21 +5,12 @@ namespace CameraAnalyzer.bl.Services.PackagesAnalysis.MiddleServices
 {
     public class WorkflowOutputService
     {
-        public List<PackageDetails> BuildJson(List<string> geminiResults)
+        public PackageDetails? BuildJson(string geminiResult)
         {
-            var allPackages = new List<PackageDetails>();
 
-            foreach (var json in geminiResults)
-            {
-                var parsed = JsonSerializer.Deserialize<List<PackageDetails>>(json);
+            var parsed = JsonSerializer.Deserialize<PackageDetails>(geminiResult);
 
-                if (parsed != null)
-                {
-                    allPackages.AddRange(parsed);
-                }
-            }
-
-            return allPackages;
+            return parsed;
         }
     }
 }

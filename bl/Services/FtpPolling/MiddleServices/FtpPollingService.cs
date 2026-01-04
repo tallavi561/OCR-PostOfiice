@@ -10,6 +10,8 @@ namespace CameraAnalyzer.bl.Services.FtpPolling
         Task<IEnumerable<string>> GetCurrentFoldersAsync();
         Task DeleteFilesAsync(List<string> filePaths);
         Task DeleteFolderImagesAsync(string folderName);
+        Task DeleteFolderAndContentsAsync(string folderName);
+        
     }
     public class FtpPollingService : IFtpPollingService
     {
@@ -132,6 +134,44 @@ namespace CameraAnalyzer.bl.Services.FtpPolling
                 }
             }
         }
+
+        public async Task DeleteFolderAndContentsAsync(string folderName)
+        {
+            // Create a new FTP client instance with connection credentials
+            using (var client = new AsyncFtpClient(_host, _user, _pass))
+            {
+                // Establish connection to the FTP server
+                await client.Connect();
+
+                // Ensure the remote path starts with a leading slash
+                string remoteFolderPath = folderName.StartsWith("/")
+                    ? folderName
+                    : "/" + folderName;
+
+                try
+                {
+                    // This command deletes the directory and ALL its contents
+                    // (files and subdirectories) recursively
+                    // In FluentFTP, DeleteDirectory performs recursive deletion by default
+                    await client.DeleteDirectory(remoteFolderPath);
+
+                    Console.WriteLine(
+                        $"[INFO] Successfully deleted folder and all contents: {remoteFolderPath}"
+                    );
+                }
+                catch (Exception ex)
+                {
+                    // Log the error if deletion fails
+                    Console.WriteLine(
+                        $"[ERROR] Failed to delete folder {remoteFolderPath} | {ex.Message}"
+                    );
+
+                    // Re-throw the exception so the caller knows the operation failed
+                    throw;
+                }
+            }
+        }
+
 
     }
 }

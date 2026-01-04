@@ -25,43 +25,31 @@ namespace CameraAnalyzer.bl.APIs
             _http.BaseAddress = new Uri(_baseUrl);
         }
 
-        public async Task<List<BoundingBox>> Detect(string imagePath)
+
+
+        public async Task<List<DetectionResult>> DetectStickers(string imagePath, string labelName)
         {
-            Logger.LogInfo("Converting image to Base64...");
-            string base64Image = await ImagesProcessing.ConvertImageToBase64(imagePath);
+            using var form = new MultipartFormDataContent();
+            var fileBytes = await File.ReadAllBytesAsync(imagePath);
+            var fileContent = new ByteArrayContent(fileBytes);
+            fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("image/jpeg");
 
-            var payload = new { image = base64Image };
+            form.Add(fileContent, "image", Path.GetFileName(imagePath));
+            form.Add(new StringContent(labelName), "labelName");
 
-            Logger.LogInfo("Sending image to AI Detector API: " +
-                           _http.BaseAddress + "api/v1/detectBase64Image");
-
-            var response = await _http.PostAsJsonAsync(
-                "/api/v1/detectBase64Image", payload
-            );
+            var response = await _http.PostAsync("api/detectSticker/v1", form);
 
             if (!response.IsSuccessStatusCode)
             {
-                throw new Exception($"Server returned error: {response.StatusCode}");
+                var error = await response.Content.ReadAsStringAsync();
+                throw new Exception($"API Error: {error}");
             }
 
-            var serverResponse = await response.Content.ReadFromJsonAsync<DetectResponse>();
-
-            if (serverResponse?.Detections == null)
-                return new List<BoundingBox>();
-
-            Logger.LogInfo($"Received {serverResponse.Detections.Count} detections from AI Detector API.");
-
-            return serverResponse.Detections;
-            // return [];
+            // קריאת רשימת התוצאות
+            var results = await response.Content.ReadFromJsonAsync<List<DetectionResult>>();
+            return results ?? new List<DetectionResult>();
         }
     }
-
-    public class DetectResponse
-    {
-        [JsonPropertyName("detections")]
-        public List<BoundingBox> Detections { get; set; }
-
-        [JsonPropertyName("message")]
-        public string Message { get; set; }
-    }
 }
+
+

@@ -66,7 +66,7 @@ namespace CameraAnalyzer.bl.Utils
         // ----------------------------------------------------
         // IMAGE TO BASE64
         // ----------------------------------------------------
-        public static async Task<string> ConvertImageToBase64(string imagePath)
+        public static async Task<string> ConvertImagePathToBase64(string imagePath)
         {
             if (!File.Exists(imagePath))
                 throw new FileNotFoundException("Image file not found.", imagePath);
@@ -78,6 +78,16 @@ namespace CameraAnalyzer.bl.Utils
 
             return Convert.ToBase64String(ms.ToArray());
         }
+        public static string ConvertImageToBase64(byte[] imageBytes)
+        {
+            if (imageBytes == null || imageBytes.Length == 0)
+            {
+                throw new ArgumentException("Image data cannot be null or empty.");
+            }
+
+            return Convert.ToBase64String(imageBytes);
+        }
+
 
         // ----------------------------------------------------
         // DRAW BOUNDING BOXES + CLASS NAME

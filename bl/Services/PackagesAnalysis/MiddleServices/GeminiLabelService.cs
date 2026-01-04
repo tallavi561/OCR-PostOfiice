@@ -64,31 +64,46 @@ namespace CameraAnalyzer.bl.Services.PackagesAnalysis.MiddleServices
     });
             }
 
-
-            public async Task<List<string>> AnalyzeAllPropertiesAsync(List<string> cropPaths)
+            private async Task<string> ProcessSingleImageAsync(byte[] imageBytes, int index)
             {
-                  var tasks = cropPaths.Select(async path =>
+                  try
                   {
-                        try
-                        {
-                              var result = await _gemini.AnalyzeImageFromStorageAsync(path, GetPropertiesPrompt());
-                              return result;
-                        }
-                        catch (Exception ex)
-                        {
-                              Logger.LogError("Gemini failed for " + path + ": " + ex.Message);
-                              return null;
-                        }
-                  });
+                        Logger.LogInfo($"Analyzing image #{index + 1}...");
 
-                  var rawResults = await Task.WhenAll(tasks);
+                        string? result = await _gemini.AnalyzeImageFromBytesAsync(imageBytes, GetPropertiesPrompt());
 
-                  List<string> cleaned = rawResults
-                      .Where(r => r is not null)
-                      .Select(r => r!)   
+                        return result ?? string.Empty;
+                  }
+                  catch (Exception ex)
+                  {
+                        // תפיסת שגיאה נקודתית כדי לא להכשיל את כל שאר התמונות
+                        Logger.LogError($"Error analyzing image #{index + 1}: {ex.Message}");
+                        return $"[Error Image #{index + 1}]";
+                  }
+            }
+            public async Task<List<string>> AnalyzeAllImagesAsync(List<byte[]?> imagesToAnalyze)
+            {
+                  if (imagesToAnalyze == null || !imagesToAnalyze.Any())
+                  {
+                        Logger.LogInfo("No images to process.");
+                        return new List<string>();
+                  }
+
+                  Logger.LogInfo($"Starting parallel analysis for {imagesToAnalyze.Count} images...");
+
+                  // יצירת רשימת משימות - כל תמונה נשלחת לפונקציית העיבוד הפרטנית
+                  var tasks = imagesToAnalyze
+                      .Where(img => img != null && img.Length > 0)
+                      .Select((img, index) => ProcessSingleImageAsync(img!, index))
                       .ToList();
 
-                  return cleaned;
+                  // המתנה לסיום כל המשימות במקביל
+                  string[] resultsArray = await Task.WhenAll(tasks);
+
+                  // סינון תוצאות ריקות והחזרה כרשימה
+                  return resultsArray
+                      .Where(r => !string.IsNullOrWhiteSpace(r))
+                      .ToList();
             }
       }
 }

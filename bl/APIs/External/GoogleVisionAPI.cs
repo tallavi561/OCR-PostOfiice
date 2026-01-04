@@ -29,22 +29,14 @@ namespace CameraAnalyzer.bl.APIs
         /// <summary>
         /// Sends an image to Google Vision API for OBJECT_LOCALIZATION and returns raw JSON.
         /// </summary>
-        public async Task<string> AnalyzeImageAsync(string imagePath, string prompt)
+        public async Task<string> AnalyzeImageAsync(byte[] image, string prompt)
         {
             try
             {
-                // 1. Validate image path
-                if (!File.Exists(imagePath))
-                {
-                    string msg = $"Image file not found: {imagePath}";
-                    Logger.LogError(msg);
-                    return JsonError(msg);
-                }
 
-                // 2. Convert image to Base64
-                string base64Image = await ImagesProcessing.ConvertImageToBase64(imagePath);
+                // 1. Convert image to Base64
+                string base64Image = ImagesProcessing.ConvertImageToBase64(image);
 
-                Logger.LogInfo($"Sending '{Path.GetFileName(imagePath)}' to Google Vision API...");
                 Logger.LogInfo("Prompt (ignored by Vision API): " + prompt);
 
                 // 3. Build request body EXACTLY in the format Google Vision expects

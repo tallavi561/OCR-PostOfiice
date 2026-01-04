@@ -8,31 +8,27 @@ namespace CameraAnalyzer.bl.Services.PackagesAnalysis.WorkFlow
 {
       public interface IPackagesAnalysisWorkflow
       {
-            Task<List<PackageDetails>> AnalyzeImagesAsync(List<string> imagePaths);
+            Task<List<PackageDetails>> AnalyzeImagesAsync(List<string> imagesPaths, string labelsCompany);
       }
       public class PackagesAnalysisWorkflow : IPackagesAnalysisWorkflow
       {
             private readonly DetectionService _detector;
-            // private readonly CroppingService _cropper;
             private readonly GeminiLabelService _gemini;
             private readonly WorkflowOutputService _output;
 
             // All dependencies are injected from DI
             public PackagesAnalysisWorkflow(
                 DetectionService detector,
-            //     CroppingService cropper,
                 GeminiLabelService geminiLabelService,
                 WorkflowOutputService output)
             {
                   _detector = detector;
-                  // _cropper = cropper;
                   _gemini = geminiLabelService;
                   _output = output;
             }
 
-            public async Task<List<PackageDetails>> AnalyzeImagesAsync(List<string> imagesPaths)
+            public async Task<List<PackageDetails>> AnalyzeImagesAsync(List<string> imagesPaths, string labelsCompany)
             {
-                  var allPackages = new List<PackageDetails>();
 
                   // Create a list of Tasks to process all images in parallel
                   var tasks = imagesPaths.Select(async imagePath =>
@@ -40,35 +36,52 @@ namespace CameraAnalyzer.bl.Services.PackagesAnalysis.WorkFlow
                         Logger.LogInfo("Processing image: " + imagePath);
 
                         // 1) Detect packages in the image
-                        var detectedBoxes = await _detector.DetectPackagesAsync(imagePath);
-                        if (detectedBoxes.Count == 0)
+                        List<byte[]?> labelsImages = await _detector.DetectPackagesAsync(imagePath, labelsCompany);
+                        if (labelsImages == null)
                         {
                               // No packages found → return empty list for this image
-                              return new List<PackageDetails>();
+                              return null;
                         }
 
-                        // 2) Crop all detected packages
-                        ImagesProcessing.DrawBoundingBoxes(detectedBoxes, imagePath, $"./marked/{imagePath}");
-                        // var imageCrops = _cropper.GetCroppetImages(imagePath, detectedBoxes);
+                        // 2) Analyze all crops using Gemini
+                        List<string> geminiAnalysis = await _gemini.AnalyzeAllImagesAsync(labelsImages);
 
-                        // 3) Analyze all crops using Gemini
-                        // var geminiAnalysis = await _gemini.AnalyzeAllPropertiesAsync(imageCrops);
-                        var geminiAnalysis = new List<string>();
+                        if (geminiAnalysis == null)
+                        {
+                              return null;
+                        }
+                        // var geminiAnalysis = new List<string>();
                         // Build the JSON result for this image
-                        var resultForImage = _output.BuildJson(geminiAnalysis);
+                        List<PackageDetails> resultForImage = [];
+                        foreach (string gA in geminiAnalysis)
+                        {
+                              PackageDetails? packageDetails = _output.BuildJson(gA);
+                              if (packageDetails != null)
+                              {
+                                    resultForImage.Add(packageDetails);
+                              }
+
+                        }
 
                         return resultForImage;
                   });
 
-                  // Wait for all image-processing tasks to finish in parallel
-                  var results = await Task.WhenAll(tasks);
+                  var allPackagesDetails = new List<PackageDetails>();
 
-                  // Flatten all results into a single list
-                  foreach (var r in results)
-                        allPackages.AddRange(r);
-                  Logger.LogInfo($"Total packages analyzed from all images: {allPackages.Count}");
-                  Logger.LogDebug("Packages details: " + System.Text.Json.JsonSerializer.Serialize(allPackages));
-                  return allPackages;
+                  // ממתינים לכל המשימות במקביל
+                  List<PackageDetails>?[] allDetails = await Task.WhenAll(tasks);
+
+                  // שימוש ב-AddRange כדי לאחד את הרשימות
+                  foreach (var detailsList in allDetails)
+                  {
+                        if (detailsList != null)
+                        {
+                              allPackagesDetails.AddRange(detailsList); // כאן היה התיקון מ-Add ל-AddRange
+                        }
+                  }
+                  Logger.LogInfo($"Total packages analyzed from all images: {allPackagesDetails.Count}");
+                  Logger.LogDebug("Packages details: " + System.Text.Json.JsonSerializer.Serialize(allPackagesDetails));
+                  return allPackagesDetails;
             }
 
       }
