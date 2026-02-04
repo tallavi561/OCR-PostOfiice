@@ -1,4 +1,5 @@
 using CameraAnalyzer.bl.APIs;
+using CameraAnalyzer.bl.Models;
 using CameraAnalyzer.bl.Utils;
 
 namespace CameraAnalyzer.bl.Services.PackagesAnalysis.MiddleServices
@@ -6,7 +7,6 @@ namespace CameraAnalyzer.bl.Services.PackagesAnalysis.MiddleServices
       public class GeminiLabelService
       {
             private readonly GeminiAPI _gemini;
-            // private readonly GoogleVisionAPI 
 
             public GeminiLabelService(GeminiAPI gemini)
             {
@@ -64,29 +64,31 @@ namespace CameraAnalyzer.bl.Services.PackagesAnalysis.MiddleServices
     });
             }
 
-            private async Task<string> ProcessSingleImageAsync(byte[] imageBytes, int index)
+            private async Task<List<PackageDetails>> ProcessSingleImageAsync(byte[] imageBytes, int index)
             {
                   try
                   {
                         Logger.LogInfo($"Analyzing image #{index + 1}...");
 
-                        string? result = await _gemini.AnalyzeImageFromBytesAsync(imageBytes, GetPropertiesPrompt());
+                        List<PackageDetails>? result = await _gemini.AnalyzeImageFromBytesAsync(imageBytes, GetPropertiesPrompt());
 
-                        return result ?? string.Empty;
+                        return result ?? [];
                   }
                   catch (Exception ex)
                   {
                         // תפיסת שגיאה נקודתית כדי לא להכשיל את כל שאר התמונות
                         Logger.LogError($"Error analyzing image #{index + 1}: {ex.Message}");
-                        return $"[Error Image #{index + 1}]";
+                        return [];
                   }
             }
-            public async Task<List<string>> AnalyzeAllImagesAsync(List<byte[]?> imagesToAnalyze)
+
+            // the images are given in groups of 3 (from 3 sides), so we need to analyze them in parallel
+            public async Task<List<List<PackageDetails>>> AnalyzeAllImagesAsync(List<byte[]?> imagesToAnalyze)
             {
                   if (imagesToAnalyze == null || !imagesToAnalyze.Any())
                   {
                         Logger.LogInfo("No images to process.");
-                        return new List<string>();
+                        return [];
                   }
 
                   Logger.LogInfo($"Starting parallel analysis for {imagesToAnalyze.Count} images...");
@@ -98,12 +100,10 @@ namespace CameraAnalyzer.bl.Services.PackagesAnalysis.MiddleServices
                       .ToList();
 
                   // המתנה לסיום כל המשימות במקביל
-                  string[] resultsArray = await Task.WhenAll(tasks);
+                  var resultsArray = await Task.WhenAll(tasks);
 
                   // סינון תוצאות ריקות והחזרה כרשימה
-                  return resultsArray
-                      .Where(r => !string.IsNullOrWhiteSpace(r))
-                      .ToList();
+                  return resultsArray.Where(res => res != null).ToList();
             }
       }
 }

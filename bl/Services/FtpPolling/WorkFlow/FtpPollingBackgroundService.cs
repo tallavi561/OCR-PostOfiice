@@ -1,7 +1,8 @@
 using Microsoft.Extensions.Hosting;
 using CameraAnalyzer.bl.Services.PackagesAnalysis.WorkFlow;
 using CameraAnalyzer.bl.Utils;
-
+using CameraAnalyzer.bl.Services.CompanyName;
+using CameraAnalyzer.bl.Models;
 namespace CameraAnalyzer.bl.Services.FtpPolling.WorkFlow
 {
     public class FtpPollingBackgroundService : BackgroundService
@@ -9,18 +10,20 @@ namespace CameraAnalyzer.bl.Services.FtpPolling.WorkFlow
         private readonly IFtpPollingService _ftpPolling;
         private readonly IPackagesAnalysisWorkflow _workflow;
         private readonly ILogger<FtpPollingBackgroundService> _logger;
-
+        private readonly ICompanyNameService _companyNameService; // השירות החדש
         // Keeps track of folders that were already handled
         private readonly HashSet<string> _knownFolders = new HashSet<string>();
 
         public FtpPollingBackgroundService(
             IFtpPollingService ftpPolling,
             IPackagesAnalysisWorkflow workflow,
+            ICompanyNameService companyNameService,
             ILogger<FtpPollingBackgroundService> logger)
         {
             _ftpPolling = ftpPolling;
             _workflow = workflow;
             _logger = logger;
+            _companyNameService = companyNameService;
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -32,11 +35,18 @@ namespace CameraAnalyzer.bl.Services.FtpPolling.WorkFlow
                 try
                 {
                     // Step 1: get delivery company name
-                    string deliveryCompanyName = "DHL";
-
                     // Step 1: Find all current folders
                     var folders = await _ftpPolling.GetCurrentFoldersAsync();
-
+                    if (folders == null || !folders.Any())
+                    {
+                        Logger.LogDebug("[FTP] No folders found on FTP server.");
+                        await Task.Delay(5000, stoppingToken);
+                        continue;
+                    }
+                    //  string deliveryCompanyName = "IsraelPostOffice";
+                    string deliveryCompanyName = await _companyNameService.GetCompanyNameAsync();
+                    Logger.LogInfo($"[FTP] Using delivery company name: {deliveryCompanyName}");
+                    
                     // Step 2: Collect only the new folders
                     List<string> newFolders = new List<string>();
                     foreach (var folder in folders)
@@ -67,7 +77,13 @@ namespace CameraAnalyzer.bl.Services.FtpPolling.WorkFlow
                                 }
 
                                 await _ftpPolling.DeleteFolderAndContentsAsync(folder);
-                                var properties = await _workflow.AnalyzeImagesAsync(localImagesPaths, deliveryCompanyName);
+                                List<PackageDetails> properties = await _workflow.AnalyzeImagesAsync(localImagesPaths, deliveryCompanyName);
+
+                                // Log the results
+                                foreach (var prop in properties)
+                                {
+                                    Logger.LogInfo($"[FTP] Analyzed package: {prop}");
+                                }
 
                                 Logger.LogInfo($"[FTP] Deleted images for folder '{folder}'.");
                                 Logger.LogInfo($"[FTP] Analysis complete for folder '{folder}'.");

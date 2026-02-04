@@ -60,7 +60,9 @@ pictures/
 TestResult.xml
 nunit-*.xml
 .fake
-
+DebugDetections/
+googleAPIDocs/
+publish-win/
 Post-Office--OCR-test-master/
 
 .fake
