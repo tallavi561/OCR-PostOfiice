@@ -10,7 +10,7 @@ namespace CameraAnalyzer.bl.Utils
         public static void LogError(string message)
         {
             if (CurrentLogLevel < 0) return;
-            Console.Write($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] ");
+            Console.Write($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss:fff}] ");
             Console.ForegroundColor = ConsoleColor.Red;
             Console.Write("[ERROR]");
             Console.ResetColor();
@@ -20,7 +20,7 @@ namespace CameraAnalyzer.bl.Utils
         {
 
             if (CurrentLogLevel < 1) return;
-            Console.Write($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] ");
+            Console.Write($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss:fff}] ");
             Console.ForegroundColor = ConsoleColor.Green;
             Console.Write("[INFO]");
             Console.ResetColor();
@@ -31,7 +31,7 @@ namespace CameraAnalyzer.bl.Utils
         public static void LogWarning(string message)
         {
             if (CurrentLogLevel < 2) return;
-            Console.Write($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] ");
+            Console.Write($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss:fff}] ");
             Console.ForegroundColor = ConsoleColor.Yellow;
             Console.Write("[WARNING]");
             Console.ResetColor();
@@ -41,7 +41,7 @@ namespace CameraAnalyzer.bl.Utils
         public static void LogDebug(string message)
         {
             if (CurrentLogLevel < 3) return;
-            Console.Write($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] ");
+            Console.Write($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss:fff}] ");
             Console.ForegroundColor = ConsoleColor.Cyan;
             Console.Write("[DEBUG]");
             Console.ResetColor();

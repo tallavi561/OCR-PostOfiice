@@ -29,10 +29,6 @@ namespace CameraAnalyzer.bl.Services.PackagesAnalysis.WorkFlow
 
             public async Task<List<PackageDetails>> AnalyzeImagesAsync(List<string> imagesPaths, string labelsCompany)
             {
-                  // Start time
-
-                  // Logger.LogInfo($"Starting analysis for {imagesPaths.Count} images with labels company: {labelsCompany}");
-                  
 
                   // Create a list of Tasks to process all images in parallel
                   var tasks = imagesPaths.Select(async imagePath =>
@@ -46,10 +42,18 @@ namespace CameraAnalyzer.bl.Services.PackagesAnalysis.WorkFlow
                               // No packages found → return empty list for this image
                               return null;
                         }
+                        
 
                         // 2) Analyze all crops using Gemini
+                        // time for Gemini analysis
+                        var geminiStartTime = DateTime.UtcNow;
+                        Logger.LogInfo($"Detected {labelsImages.Count} potential packages in image '{imagePath}'. Starting Gemini analysis...");
                         List<List<PackageDetails>> geminiAnalysis = await _gemini.AnalyzeAllImagesAsync(labelsImages);
-
+                        Logger.LogInfo($"Gemini analysis completed for image '{imagePath}'. Found {geminiAnalysis.Sum(g => g.Count)} packages across all crops.");
+                        // time for Gemini analysis
+                        var geminiEndTime = DateTime.UtcNow;
+                        var geminiDuration = geminiEndTime - geminiStartTime;
+                        Logger.LogInfo($"\n\n<> Gemini analysis & string adapter time for image '{imagePath}': {geminiDuration.TotalSeconds} seconds.\n\n");
                         if (geminiAnalysis == null)
                         {
                               return null;

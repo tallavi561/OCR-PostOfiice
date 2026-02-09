@@ -68,7 +68,6 @@ namespace CameraAnalyzer.bl.Services.PackagesAnalysis.MiddleServices
             {
                   try
                   {
-                        Logger.LogInfo($"Analyzing image #{index + 1}...");
 
                         List<PackageDetails>? result = await _gemini.AnalyzeImageFromBytesAsync(imageBytes, GetPropertiesPrompt());
 
@@ -90,8 +89,6 @@ namespace CameraAnalyzer.bl.Services.PackagesAnalysis.MiddleServices
                         Logger.LogInfo("No images to process.");
                         return [];
                   }
-
-                  Logger.LogInfo($"Starting parallel analysis for {imagesToAnalyze.Count} images...");
 
                   // יצירת רשימת משימות - כל תמונה נשלחת לפונקציית העיבוד הפרטנית
                   var tasks = imagesToAnalyze

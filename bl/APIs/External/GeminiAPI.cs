@@ -1,6 +1,8 @@
 using Google.Apis.Auth.OAuth2;
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
@@ -15,79 +17,49 @@ namespace CameraAnalyzer.bl.APIs
     public class GeminiAPI
     {
         private readonly HttpClient _httpClient;
-        private readonly string _jsonContent;
         private readonly string _projectId;
         private readonly string _location = "europe-west1";
-        private const string BaseUrl = "https://generativelanguage.googleapis.com/v1beta/models";
+        private readonly string _apiUrl;
+        private readonly GoogleCredential _credential;
         private const string ModelName = "gemini-2.0-flash";
 
         public GeminiAPI(HttpClient httpClient, IConfiguration config)
         {
-            _httpClient = httpClient;
-
-            // שליפת ה-ID של הפרויקט
+            _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
             _projectId = config["GoogleCloud:ProjectId"] ?? "aol-services";
 
-            // שליפת הנתונים מתוך הסקשן ובניית מילון שטוח
+            // בניית ה-URL פעם אחת ב-Constructor
+            _apiUrl = $"https://{_location}-aiplatform.googleapis.com/v1/projects/{_projectId}/locations/{_location}/publishers/google/models/{ModelName}:streamGenerateContent";
+
+            // יצירת ה-Credential פעם אחת בלבד
             var jsonSection = config.GetSection("GoogleCloud:ServiceAccountJson");
-            var keyValues = new Dictionary<string, string>();
+            var keyValues = jsonSection.GetChildren().ToDictionary(c => c.Key, c => c.Value);
+            string jsonContent = JsonSerializer.Serialize(keyValues);
 
-            foreach (var child in jsonSection.GetChildren())
-            {
-                if (child.Value != null)
-                {
-                    keyValues[child.Key] = child.Value;
-                }
-            }
-
-            // יצירת מחרוזת JSON תקנית עבור GoogleCredential
-            _jsonContent = JsonSerializer.Serialize(keyValues);
+            _credential = GoogleCredential.FromJson(jsonContent)
+                                         .CreateScoped("https://www.googleapis.com/auth/cloud-platform");
         }
 
+        /// <summary>
+        /// מקבל Access Token מ-Google Credentials.
+        /// הספרייה מטמנת את ה-Token ומחדשת אותו אוטומטית במידת הצורך.
+        /// </summary>
         private async Task<string> GetAccessTokenAsync()
         {
-            // יצירת ה-Credential ישירות מהמחרוזת (במקום קובץ)
-            var credential = GoogleCredential.FromJson(_jsonContent)
-                                .CreateScoped("https://www.googleapis.com/auth/cloud-platform");
-
-            var token = await credential.UnderlyingCredential.GetAccessTokenForRequestAsync();
-            return token;
+            return await _credential.UnderlyingCredential.GetAccessTokenForRequestAsync();
         }
 
-        // ===============================================================
-        // TEXT-ONLY
-        // ===============================================================
-        // public async Task<string?> AskGeminiAsync(string prompt)
-        // {
-        //     if (string.IsNullOrWhiteSpace(prompt))
-        //         throw new ArgumentException("Prompt cannot be empty.", nameof(prompt));
-
-        //     var payload = new
-        //     {
-        //         contents = new[]
-        //         {
-        //             new
-        //             {
-        //                 role = "user",
-        //                 parts = new[]
-        //                 {
-        //                     new { text = prompt }
-        //                 }
-        //             }
-        //         }
-        //     };
-
-        //     return await SendRequestAsync(payload);
-        // }
-
-        // ===============================================================
-        // IMAGE + PROMPT (base64)
-        // ===============================================================
-        public async Task<List<PackageDetails>?> AnalyzeImageAsync(
+        /// <summary>
+        /// מנתח תמונה מ-Base64 עם Prompt
+        /// </summary>
+        private async Task<List<PackageDetails>?> InnerAnalyzeImageAsync(
             string base64ImageData, string prompt, string mimeType = "image/jpeg")
         {
             if (string.IsNullOrWhiteSpace(base64ImageData))
-                throw new ArgumentException("Image data cannot be empty.");
+                throw new ArgumentException("Image data cannot be empty.", nameof(base64ImageData));
+
+            if (string.IsNullOrWhiteSpace(prompt))
+                throw new ArgumentException("Prompt cannot be empty.", nameof(prompt));
 
             var payload = new
             {
@@ -115,77 +87,99 @@ namespace CameraAnalyzer.bl.APIs
             return await SendRequestAsync(payload);
         }
 
-        // ===============================================================
-        // IMAGE FILE → BASE64 → PROMPT
-        // ===============================================================
+        /// <summary>
+        /// מנתח תמונה מ-Bytes עם Prompt
+        /// </summary>
         public async Task<List<PackageDetails>?> AnalyzeImageFromBytesAsync(
             byte[] imageToAnalyze, string prompt, string mimeType = "image/jpeg")
         {
-
+            if (imageToAnalyze == null || imageToAnalyze.Length == 0)
+                throw new ArgumentException("Image bytes cannot be null or empty.", nameof(imageToAnalyze));
 
             var base64 = ImagesProcessing.ConvertImageToBase64(imageToAnalyze);
 
-            List<PackageDetails>? geminiResponse = await AnalyzeImageAsync(base64, prompt, mimeType);
+            List<PackageDetails>? geminiResponse = await InnerAnalyzeImageAsync(base64, prompt, mimeType);
+            
             if (geminiResponse == null)
             {
                 Logger.LogWarning("Gemini API returned no response.");
                 return null;
             }
+
             return geminiResponse;
         }
 
-        // ===============================================================
-        // CORE HTTP CALL
-        // ===============================================================
+        /// <summary>
+        /// שולח בקשה ל-Gemini API - Thread-Safe למקביליות
+        /// </summary>
         private async Task<List<PackageDetails>?> SendRequestAsync(object payload)
         {
-            // 1. הפקת ה-Token מה-JSON (השתמש בפונקציה שכבר כתבת)
-            string accessToken = await GetAccessTokenAsync();
-
-            // 2. בניית ה-URL עבור Vertex AI (שים לב לפורמט השונה)
-            // הערה: וודא שה-Location מתאים למה שהגדרת (למשל us-central1)
-            string url = $"https://{_location}-aiplatform.googleapis.com/v1/projects/{_projectId}/locations/{_location}/publishers/google/models/{ModelName}:streamGenerateContent";
-
-            string jsonPayload = JsonSerializer.Serialize(payload);
-            var content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
+            Logger.LogInfo("Building Gemini API request...");
 
             try
             {
-                var request = new HttpRequestMessage(HttpMethod.Post, url);
+                // קבלת Access Token
+                string accessToken = await GetAccessTokenAsync();
 
-                // 3. הוספת האימות ל-Header (במקום ה-Key ב-URL)
-                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-                request.Content = content;
+                // הכנת ה-Payload
+                string jsonPayload = JsonSerializer.Serialize(payload);
 
+                // יצירת Request עם כל המידע - Thread-Safe
+                var request = new HttpRequestMessage(HttpMethod.Post, _apiUrl)
+                {
+                    Headers = 
+                    { 
+                        Authorization = new AuthenticationHeaderValue("Bearer", accessToken) 
+                    },
+                    Content = new StringContent(jsonPayload, Encoding.UTF8, "application/json")
+                };
+
+                Logger.LogInfo("Sending request to Gemini API...");
+
+                // שליחת הבקשה
                 var response = await _httpClient.SendAsync(request);
                 var rawResponse = await response.Content.ReadAsStringAsync();
 
                 if (!response.IsSuccessStatusCode)
                 {
-                    Logger.LogError("❌ Gemini API Error:");
+                    Logger.LogError($"❌ Gemini API Error ({response.StatusCode}):");
                     Logger.LogError(rawResponse);
                     return null;
                 }
 
+                Logger.LogInfo("Received response from Gemini API. Parsing...");
                 return ParseResponse(rawResponse);
+            }
+            catch (HttpRequestException httpEx)
+            {
+                Logger.LogError($"❌ HTTP Error calling Gemini API: {httpEx.Message}");
+                return null;
+            }
+            catch (TaskCanceledException timeoutEx)
+            {
+                Logger.LogError($"❌ Timeout calling Gemini API: {timeoutEx.Message}");
+                return null;
             }
             catch (Exception ex)
             {
-                Logger.LogError($"❌ Error calling Gemini API: {ex}");
+                Logger.LogError($"❌ Unexpected error calling Gemini API: {ex}");
                 return null;
             }
         }
 
-        // ===============================================================
-        // PARSE RESPONSE
-        // ===============================================================
+        /// <summary>
+        /// מפרסר את התגובה מ-Gemini API
+        /// </summary>
         private List<PackageDetails>? ParseResponse(string rawJson)
         {
+            Logger.LogInfo("Parsing Gemini API response...");
+
             try
             {
                 using var doc = JsonDocument.Parse(rawJson);
                 StringBuilder fullText = new StringBuilder();
 
+                // איסוף כל הטקסט מהתגובה
                 foreach (var element in doc.RootElement.EnumerateArray())
                 {
                     if (element.TryGetProperty("candidates", out var candidates) && candidates.GetArrayLength() > 0)
@@ -193,36 +187,71 @@ namespace CameraAnalyzer.bl.APIs
                         var parts = candidates[0].GetProperty("content").GetProperty("parts");
                         foreach (var part in parts.EnumerateArray())
                         {
-                            fullText.Append(part.GetProperty("text").GetString());
+                            if (part.TryGetProperty("text", out var textProperty))
+                            {
+                                fullText.Append(textProperty.GetString());
+                            }
                         }
                     }
                 }
 
                 string text = fullText.ToString().Trim();
 
+                if (string.IsNullOrWhiteSpace(text))
+                {
+                    Logger.LogWarning("Gemini response contained no text content.");
+                    return null;
+                }
+
                 // ניקוי Markdown wrappers
-                if (text.Contains("```json"))
-                {
-                    text = text.Split("```json")[1].Split("```")[0];
-                }
-                else if (text.Contains("```"))
-                {
-                    text = text.Split("```")[1].Split("```")[0];
-                }
+                text = CleanMarkdownWrappers(text);
 
-                text = text.Trim();
+                // Deserialize ישירות למערך של PackageDetails
+                var result = JsonSerializer.Deserialize<List<PackageDetails>>(text, new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                });
 
-                // ✅ Deserialize ישירות למערך של PackageDetails
-                var result = JsonSerializer.Deserialize<List<PackageDetails>>(text);
+                Logger.LogInfo($"✅ Parsed {result?.Count ?? 0} packages from Gemini response.");
                 return result;
+            }
+            catch (JsonException jsonEx)
+            {
+                Logger.LogError($"❌ Failed to parse Gemini JSON: {jsonEx.Message}");
+                return null;
             }
             catch (Exception ex)
             {
-                Logger.LogError($"❌ Failed to parse Gemini JSON: {ex.Message}");
+                Logger.LogError($"❌ Unexpected error parsing Gemini response: {ex.Message}");
                 return null;
             }
         }
 
+        /// <summary>
+        /// מנקה Markdown code blocks מסביב ל-JSON
+        /// </summary>
+        private string CleanMarkdownWrappers(string text)
+        {
+            // הסרת ```json...```
+            if (text.Contains("```json"))
+            {
+                var parts = text.Split(new[] { "```json" }, StringSplitOptions.None);
+                if (parts.Length > 1)
+                {
+                    text = parts[1].Split(new[] { "```" }, StringSplitOptions.None)[0];
+                }
+            }
+            // הסרת ```...```
+            else if (text.Contains("```"))
+            {
+                var parts = text.Split(new[] { "```" }, StringSplitOptions.None);
+                if (parts.Length > 1)
+                {
+                    text = parts[1].Split(new[] { "```" }, StringSplitOptions.None)[0];
+                }
+            }
 
+            return text.Trim();
+        }
     }
 }

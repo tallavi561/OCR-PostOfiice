@@ -45,7 +45,7 @@ namespace CameraAnalyzer.bl.Services.FtpPolling.WorkFlow
                     }
                     //  string deliveryCompanyName = "IsraelPostOffice";
                     string deliveryCompanyName = await _companyNameService.GetCompanyNameAsync();
-                    Logger.LogInfo($"[FTP] Using delivery company name: {deliveryCompanyName}");
+                    Logger.LogDebug($"[FTP] Using delivery company name: {deliveryCompanyName}");
                     
                     // Step 2: Collect only the new folders
                     List<string> newFolders = new List<string>();
@@ -77,8 +77,10 @@ namespace CameraAnalyzer.bl.Services.FtpPolling.WorkFlow
                                 }
 
                                 await _ftpPolling.DeleteFolderAndContentsAsync(folder);
+                                
+                                Logger.LogInfo($"[FTP] Downloaded {localImagesPaths.Count} images from folder '{folder}'. Starting analysis...");
                                 List<PackageDetails> properties = await _workflow.AnalyzeImagesAsync(localImagesPaths, deliveryCompanyName);
-
+                                Logger.LogInfo($"[FTP] Analysis returned {properties.Count} packages for folder '{folder}'.");
                                 // Log the results
                                 foreach (var prop in properties)
                                 {
