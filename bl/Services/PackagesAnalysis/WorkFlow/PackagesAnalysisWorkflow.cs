@@ -3,12 +3,13 @@ using CameraAnalyzer.bl.Utils;
 using CameraAnalyzer.bl.Services.PackagesAnalysis.MiddleServices;
 using CameraAnalyzer.bl.APIs;
 using CameraAnalyzer.bl.Models;
+using CameraAnalyzer.bl.Services.FtpPolling;
 
 namespace CameraAnalyzer.bl.Services.PackagesAnalysis.WorkFlow
 {
       public interface IPackagesAnalysisWorkflow
       {
-            Task<List<PackageDetails>> AnalyzeImagesAsync(List<string> imagesPaths, string labelsCompany);
+            Task<List<PackageDetails>> AnalyzeImagesAsync(List<ImageFromFtp> imagesFromFTP, string labelsCompany);
       }
       public class PackagesAnalysisWorkflow : IPackagesAnalysisWorkflow
       {
@@ -27,16 +28,16 @@ namespace CameraAnalyzer.bl.Services.PackagesAnalysis.WorkFlow
                   _output = output;
             }
 
-            public async Task<List<PackageDetails>> AnalyzeImagesAsync(List<string> imagesPaths, string labelsCompany)
+            public async Task<List<PackageDetails>> AnalyzeImagesAsync(List<ImageFromFtp> imagesFromFTP, string labelsCompany)
             {
 
                   // Create a list of Tasks to process all images in parallel
-                  var tasks = imagesPaths.Select(async imagePath =>
+                  var tasks = imagesFromFTP.Select(async imageFromFTP =>
                   {
-                        Logger.LogInfo("Processing image: " + imagePath);
+                        Logger.LogInfo("Processing image: " + imageFromFTP.ImageName);
 
                         // 1) Detect packages in the image
-                        List<byte[]?> labelsImages = await _detector.DetectPackagesAsync(imagePath, labelsCompany);
+                        List<byte[]?> labelsImages = await _detector.DetectPackagesAsync(imageFromFTP, labelsCompany);
                         if (labelsImages == null)
                         {
                               // No packages found → return empty list for this image
@@ -47,13 +48,13 @@ namespace CameraAnalyzer.bl.Services.PackagesAnalysis.WorkFlow
                         // 2) Analyze all crops using Gemini
                         // time for Gemini analysis
                         var geminiStartTime = DateTime.UtcNow;
-                        Logger.LogInfo($"Detected {labelsImages.Count} potential packages in image '{imagePath}'. Starting Gemini analysis...");
+                        Logger.LogInfo($"Detected {labelsImages.Count} potential packages in image '{imageFromFTP.ImageName}'. Starting Gemini analysis...");
                         List<List<PackageDetails>> geminiAnalysis = await _gemini.AnalyzeAllImagesAsync(labelsImages);
-                        Logger.LogInfo($"Gemini analysis completed for image '{imagePath}'. Found {geminiAnalysis.Sum(g => g.Count)} packages across all crops.");
+                        Logger.LogInfo($"Gemini analysis completed for image '{imageFromFTP.ImageName}'. Found {geminiAnalysis.Sum(g => g.Count)} packages across all crops.");
                         // time for Gemini analysis
                         var geminiEndTime = DateTime.UtcNow;
                         var geminiDuration = geminiEndTime - geminiStartTime;
-                        Logger.LogInfo($"\n\n<> Gemini analysis & string adapter time for image '{imagePath}': {geminiDuration.TotalSeconds} seconds.\n\n");
+                        Logger.LogInfo($"<> Gemini analysis & string adapter time for image '{imageFromFTP.ImageName}': {geminiDuration.TotalSeconds} seconds.");
                         if (geminiAnalysis == null)
                         {
                               return null;

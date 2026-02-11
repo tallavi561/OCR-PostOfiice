@@ -68,9 +68,8 @@ namespace CameraAnalyzer.bl.Services.FtpPolling.WorkFlow
                             try
                             {
                                 Logger.LogInfo($"[TASK] Start processing folder: {folder}");
-
-                                var localImagesPaths = await _ftpPolling.DownloadFolderAsync(folder);
-                                if (localImagesPaths.Count == 0)
+                                List<ImageFromFtp> imagesFromFTP = await _ftpPolling.DownloadFolderAsync(folder);
+                                if (imagesFromFTP.Count == 0)
                                 {
                                     Logger.LogInfo($"[FTP] Folder '{folder}' contained no images.");
                                     return;
@@ -78,8 +77,8 @@ namespace CameraAnalyzer.bl.Services.FtpPolling.WorkFlow
 
                                 await _ftpPolling.DeleteFolderAndContentsAsync(folder);
                                 
-                                Logger.LogInfo($"[FTP] Downloaded {localImagesPaths.Count} images from folder '{folder}'. Starting analysis...");
-                                List<PackageDetails> properties = await _workflow.AnalyzeImagesAsync(localImagesPaths, deliveryCompanyName);
+                                Logger.LogInfo($"[FTP] Downloaded {imagesFromFTP.Count} images from folder '{folder}'. Starting analysis...");
+                                List<PackageDetails> properties = await _workflow.AnalyzeImagesAsync(imagesFromFTP, deliveryCompanyName);
                                 Logger.LogInfo($"[FTP] Analysis returned {properties.Count} packages for folder '{folder}'.");
                                 // Log the results
                                 foreach (var prop in properties)

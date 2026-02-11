@@ -1,17 +1,24 @@
 using FluentFTP;
 using CameraAnalyzer.bl.Services.FtpPolling.WorkFlow;
+using CameraAnalyzer.bl.Utils;
 
 namespace CameraAnalyzer.bl.Services.FtpPolling
 {
     public interface IFtpPollingService
     {
-        Task<List<string>> DownloadFolderAsync(string folderName);
+        Task<List<ImageFromFtp>> DownloadFolderAsync(string folderName);
 
         Task<IEnumerable<string>> GetCurrentFoldersAsync();
         Task DeleteFilesAsync(List<string> filePaths);
         Task DeleteFolderImagesAsync(string folderName);
         Task DeleteFolderAndContentsAsync(string folderName);
-        
+
+    }
+
+    public class ImageFromFtp
+    {
+        public string ImageName { get; set; }
+        public byte[] ImageBytes { get; set; }
     }
     public class FtpPollingService : IFtpPollingService
     {
@@ -40,13 +47,9 @@ namespace CameraAnalyzer.bl.Services.FtpPolling
                     .ToList();
             }
         }
-        public async Task<List<string>> DownloadFolderAsync(string folderName)
+        public async Task<List<ImageFromFtp>> DownloadFolderAsync(string folderName)
         {
-            var localFolder = Path.Combine("appdata", "ftp_downloads", folderName);
-
-            Directory.CreateDirectory(localFolder);
-
-            List<string> downloadedFiles = new List<string>();
+            List<ImageFromFtp> images = new List<ImageFromFtp>();
 
             using (var client = new AsyncFtpClient(_host, _user, _pass))
             {
@@ -61,22 +64,35 @@ namespace CameraAnalyzer.bl.Services.FtpPolling
                     if (item.Type == FtpObjectType.File)
                     {
                         string ext = Path.GetExtension(item.Name).ToLower();
-                        if (ext != ".png" && ext != ".jpg" && ext != ".jpeg")
-                            continue;
 
-                        string localPath = Path.Combine(localFolder, item.Name);
-
-                        var status = await client.DownloadFile(localPath, item.FullName);
-
-                        if (status == FtpStatus.Success)
+                        try
                         {
-                            downloadedFiles.Add(localPath);
+                            // Download file directly to memory
+                            using (var memoryStream = new MemoryStream())
+                            {
+                                var status = await client.DownloadStream(memoryStream, item.FullName);
+
+                                if (status)
+                                {
+                                    images.Add(new ImageFromFtp
+                                    {
+                                        ImageName = item.Name,
+                                        ImageBytes = memoryStream.ToArray()
+                                    });
+
+                                   Logger.LogInfo($"[INFO] Downloaded to memory: {item.Name}");
+                                }
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"[ERROR] Failed downloading {item.Name} | {ex.Message}");
                         }
                     }
                 }
             }
 
-            return downloadedFiles;
+            return images;
         }
         public async Task DeleteFilesAsync(List<string> filePaths)
         {
@@ -155,14 +171,14 @@ namespace CameraAnalyzer.bl.Services.FtpPolling
                     // In FluentFTP, DeleteDirectory performs recursive deletion by default
                     await client.DeleteDirectory(remoteFolderPath);
 
-                    Console.WriteLine(
+                   Logger.LogInfo(
                         $"[INFO] Successfully deleted folder and all contents: {remoteFolderPath}"
                     );
                 }
                 catch (Exception ex)
                 {
                     // Log the error if deletion fails
-                    Console.WriteLine(
+                    Logger.LogError(
                         $"[ERROR] Failed to delete folder {remoteFolderPath} | {ex.Message}"
                     );
 

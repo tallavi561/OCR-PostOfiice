@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using CameraAnalyzer.bl.APIs;
 using CameraAnalyzer.bl.Models;
 using CameraAnalyzer.bl.Utils;
+using CameraAnalyzer.bl.Services.FtpPolling;
 
 namespace CameraAnalyzer.bl.Services.PackagesAnalysis.MiddleServices
 {
@@ -15,23 +16,31 @@ namespace CameraAnalyzer.bl.Services.PackagesAnalysis.MiddleServices
         private readonly bool _isDebug;
         private readonly string _debugFolder = "DebugDetections"; // שם התיקייה לשמירה
 
-        // הוספנו פרמטר isDebug לקונסטרקטור
-        public DetectionService(AiDetectorAPI aiDetector, bool isDebug = true)
+
+        public DetectionService(AiDetectorAPI aiDetector, IConfiguration configuration)
         {
             _aiDetector = aiDetector;
-            _isDebug = isDebug;
-
+            try
+            {
+                _isDebug = configuration.GetValue<bool>("AppSettings:IsDebug");
+            } catch (Exception ex)
+            {
+                Logger.LogError($"Failed to read IsDebug from configuration: {ex.Message}. Defaulting to false.");
+                _isDebug = false;
+            }
+            // קריאת הערך מהקונפיגורציה (ברירת מחדל false אם לא קיים)
+            Logger.LogInfo($"DetectionService initialized. IsDebug: {_isDebug}");
             if (_isDebug && !Directory.Exists(_debugFolder))
             {
                 Directory.CreateDirectory(_debugFolder);
             }
         }
 
-        public async Task<List<byte[]?>> DetectPackagesAsync(string imagePath, string labelsCompany)
+        public async Task<List<byte[]?>> DetectPackagesAsync(ImageFromFtp imagesFromFTP, string labelsCompany)
         {
             Logger.LogInfo("Detecting packages...");
 
-            List<DetectionResult> detectionResults = await _aiDetector.DetectStickers(imagePath, labelsCompany);
+            List<DetectionResult> detectionResults = await _aiDetector.DetectStickers(imagesFromFTP, labelsCompany);
 
             if (detectionResults == null || !detectionResults.Any())
             {
@@ -59,7 +68,7 @@ namespace CameraAnalyzer.bl.Services.PackagesAnalysis.MiddleServices
         private async Task SaveImagesToDiskAsync(List<byte[]> images)
         {
             string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
-            
+
             for (int i = 0; i < images.Count; i++)
             {
                 // יצירת נתיב תואם Linux/Windows

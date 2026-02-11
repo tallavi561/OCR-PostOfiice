@@ -5,6 +5,7 @@ using System.Text.Json;
 using CameraAnalyzer.bl.Models;
 using CameraAnalyzer.bl.Utils;
 using System.Text.Json.Serialization;
+using CameraAnalyzer.bl.Services.FtpPolling;
 
 
 namespace CameraAnalyzer.bl.APIs
@@ -27,14 +28,14 @@ namespace CameraAnalyzer.bl.APIs
 
 
 
-        public async Task<List<DetectionResult>> DetectStickers(string imagePath, string labelName)
+        public async Task<List<DetectionResult>> DetectStickers(ImageFromFtp imagesFromFTP, string labelName)
         {
             using var form = new MultipartFormDataContent();
-            var fileBytes = await File.ReadAllBytesAsync(imagePath);
+            var fileBytes = imagesFromFTP.ImageBytes;
             var fileContent = new ByteArrayContent(fileBytes);
             fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("image/jpeg");
 
-            form.Add(fileContent, "image", Path.GetFileName(imagePath));
+            form.Add(fileContent, "image", Path.GetFileName(imagesFromFTP.ImageName));
             form.Add(new StringContent(labelName), "labelName");
 
             var response = await _http.PostAsync("api/detectSticker/v1", form);
