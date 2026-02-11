@@ -5,6 +5,18 @@ using CameraAnalyzer.bl.Services.CompanyName;
 using CameraAnalyzer.bl.Models;
 using CameraAnalyzer.bl.Services.StickersExtractor.Workflow;
 
+/**
+
+ExecuteAsync - Main loop that continuously polls the FTP server for new folders. For each new folder, it triggers the processing workflow.
+  └─> PollAndProcessFoldersAsync
+        ├─> GetNewFolders
+        └─> ProcessSingleFolderAsync (paralleled) - Handles the processing of a single folder, including downloading images, deleting the folder from FTP, and analyzing each image.
+              └─> ProcessAllImagesAsync
+                    └─> ProcessSingleImageAsync (paralleled) - Handles the processing of a single image, including sticker extraction and analysis.
+                          └─> AnalyzeAllStickersAsync
+                                └─> AnalyzeSingleStickerAsync (paralleled) - Analyzes a single sticker using the PackagesAnalysisWorkflow and logs the results.
+**/
+
 namespace CameraAnalyzer.bl.Services.FtpPolling.WorkFlow
 {
     public class FtpPollingBackgroundService : BackgroundService
