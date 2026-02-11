@@ -116,7 +116,7 @@ namespace CameraAnalyzer.bl.Services.StickersExtractor.Workflow
         /// <summary>
         /// גרסה סינכרונית של הזיהוי
         /// </summary>
-        public List<DetectionResponse> DetectSticker(byte[] imageBytes, string labelName)
+        public List<DetectionResponse> DetectStickers(byte[] imageBytes, string labelName)
         {
             return DetectStickerAsync(imageBytes, labelName).GetAwaiter().GetResult();
         }

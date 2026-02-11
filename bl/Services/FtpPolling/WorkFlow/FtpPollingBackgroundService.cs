@@ -4,15 +4,15 @@ using CameraAnalyzer.bl.Utils;
 using CameraAnalyzer.bl.Services.CompanyName;
 using CameraAnalyzer.bl.Models;
 using CameraAnalyzer.bl.Services.StickersExtractor.Workflow;
+
 namespace CameraAnalyzer.bl.Services.FtpPolling.WorkFlow
 {
     public class FtpPollingBackgroundService : BackgroundService
     {
         private readonly IFtpPollingService _ftpPolling;
-        private readonly IPackagesAnalysisWorkflow _workflow;
+        private readonly IPackagesAnalysisWorkflow _analyser;
         private readonly ILogger<FtpPollingBackgroundService> _logger;
-        private readonly ICompanyNameService _companyNameService; // השירות החדש
-        // Keeps track of folders that were already handled
+        private readonly ICompanyNameService _companyNameService;
         private readonly HashSet<string> _knownFolders = new HashSet<string>();
         private readonly StickersExtractorService _extractorService;
 
@@ -25,7 +25,7 @@ namespace CameraAnalyzer.bl.Services.FtpPolling.WorkFlow
         {
             _extractorService = extractorService;
             _ftpPolling = ftpPolling;
-            _workflow = workflow;
+            _analyser = workflow;
             _logger = logger;
             _companyNameService = companyNameService;
         }
@@ -38,80 +38,7 @@ namespace CameraAnalyzer.bl.Services.FtpPolling.WorkFlow
             {
                 try
                 {
-                    // Step 1: get delivery company name
-                    // Step 1: Find all current folders
-                    var folders = await _ftpPolling.GetCurrentFoldersFromFtpAsync();
-                    if (folders == null || !folders.Any())
-                    {
-                        Logger.LogDebug("[FTP] No folders found on FTP server.");
-                        await Task.Delay(5000, stoppingToken);
-                        continue;
-                    }
-                    //  string deliveryCompanyName = "IsraelPostOffice";
-                    string deliveryCompanyName = await _companyNameService.GetCompanyNameAsync();
-                    Logger.LogDebug($"[FTP] Using delivery company name: {deliveryCompanyName}");
-                    
-                    // Step 2: Collect only the new folders
-                    List<string> newFolders = new List<string>();
-                    foreach (var folder in folders)
-                    {
-                        if (_knownFolders.Add(folder))
-                        {
-                            Logger.LogInfo($"[FTP] New folder detected: {folder}");
-                            newFolders.Add(folder);
-                        }
-                    }
-
-                    // Step 3: Run processing for all new folders in parallel
-                    List<Task> tasks = new List<Task>();
-
-                    foreach (var folder in newFolders)
-                    {
-                        tasks.Add(Task.Run(async () =>
-                        {
-                            try
-                            {
-                                Logger.LogInfo($"[TASK] Start processing folder: {folder}");
-                                List<ImageFromFtp> imagesFromFTP = await _ftpPolling.DownloadFolderFromFtpAsync(folder);
-                                if (imagesFromFTP.Count == 0)
-                                {
-                                    Logger.LogInfo($"[FTP] Folder '{folder}' contained no images.");
-                                    return;
-                                }
-
-                                await _ftpPolling.DeleteFolderAndContentsAsync(folder);
-                                
-                                List<DetectionResponse> extractoredImages = new();
-                                foreach (var image in imagesFromFTP)
-                                {
-                                    var extractoredImage =  _extractorService.DetectSticker(image.ImageBytes, deliveryCompanyName);
-                                    extractoredImages.AddRange(extractoredImage);
-                                }
-                                // extact the labels from images
-
-                                // analyze the labels with Gemini
-                                Logger.LogInfo($"[FTP] Downloaded {imagesFromFTP.Count} images from folder '{folder}'. Starting analysis...");
-                                List<PackageDetails> properties = await _workflow.AnalyzeImagesAsync(extractoredImages, deliveryCompanyName);
-                                Logger.LogInfo($"[FTP] Analysis returned {properties.Count} packages for folder '{folder}'.");
-                                // Log the results
-                                foreach (var prop in properties)
-                                {
-                                    Logger.LogInfo($"[FTP] Analyzed package: {prop}");
-                                }
-
-                                Logger.LogInfo($"[FTP] Deleted images for folder '{folder}'.");
-                                Logger.LogInfo($"[FTP] Analysis complete for folder '{folder}'.");
-                            }
-                            catch (Exception ex)
-                            {
-                                Logger.LogError($"[TASK] Error while processing folder '{folder}': {ex.Message}");
-                            }
-
-                        }, stoppingToken));
-                    }
-
-                    // Step 4: Wait for all tasks to finish (parallel)
-                    await Task.WhenAll(tasks);
+                    await PollAndProcessFoldersAsync(stoppingToken);
                 }
                 catch (Exception ex)
                 {
@@ -122,5 +49,167 @@ namespace CameraAnalyzer.bl.Services.FtpPolling.WorkFlow
             }
         }
 
+        private async Task PollAndProcessFoldersAsync(CancellationToken stoppingToken)
+        {
+            // Step 1: Get folders from FTP
+            var folders = await _ftpPolling.GetCurrentFoldersFromFtpAsync();
+            if (folders == null || !folders.Any())
+            {
+                Logger.LogDebug("[FTP] No folders found on FTP server.");
+                return;
+            }
+
+            // Step 2: Get company name
+            string deliveryCompanyName = await _companyNameService.GetCompanyNameAsync();
+            Logger.LogDebug($"[FTP] Using delivery company name: {deliveryCompanyName}");
+
+            // Step 3: Identify new folders
+            var newFolders = GetNewFolders(folders);
+            if (!newFolders.Any())
+            {
+                return;
+            }
+
+            // Step 4: Process all new folders in parallel
+            var folderTasks = newFolders.Select(folder => 
+                ProcessSingleFolderAsync(folder, deliveryCompanyName, stoppingToken));
+            
+            await Task.WhenAll(folderTasks);
+        }
+
+        private List<string> GetNewFolders(IEnumerable<string> folders)
+        {
+            var newFolders = new List<string>();
+            foreach (var folder in folders)
+            {
+                if (_knownFolders.Add(folder))
+                {
+                    Logger.LogInfo($"[FTP] New folder detected: {folder}");
+                    newFolders.Add(folder);
+                }
+            }
+            return newFolders;
+        }
+
+        private async Task ProcessSingleFolderAsync(
+            string folder, 
+            string deliveryCompanyName, 
+            CancellationToken stoppingToken)
+        {
+            try
+            {
+                Logger.LogInfo($"[FOLDER] Start processing folder: {folder}");
+
+                // Download images
+                var imagesFromFTP = await _ftpPolling.DownloadFolderFromFtpAsync(folder);
+                if (imagesFromFTP.Count == 0)
+                {
+                    Logger.LogInfo($"[FOLDER] Folder '{folder}' contained no images.");
+                    return;
+                }
+
+                // Delete folder from FTP
+                await _ftpPolling.DeleteFolderAndContentsAsync(folder);
+                Logger.LogInfo($"[FOLDER] Deleted folder '{folder}' from FTP.");
+
+                // Process all images in parallel
+                var allPackages = await ProcessAllImagesAsync(imagesFromFTP, folder, deliveryCompanyName);
+
+                Logger.LogInfo($"[FOLDER] Completed processing folder '{folder}'. Total packages: {allPackages.Count}");
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError($"[FOLDER] Error while processing folder '{folder}': {ex.Message}");
+            }
+        }
+
+        private async Task<List<PackageDetails>> ProcessAllImagesAsync(
+            List<ImageFromFtp> images, 
+            string folderName, 
+            string deliveryCompanyName)
+        {
+            var imageProcessingTasks = images.Select(image => 
+                ProcessSingleImageAsync(image, folderName, deliveryCompanyName));
+
+            var results = await Task.WhenAll(imageProcessingTasks);
+
+            // Flatten all results into a single list
+            return results.SelectMany(r => r).ToList();
+        }
+
+        private async Task<List<PackageDetails>> ProcessSingleImageAsync(
+            ImageFromFtp image, 
+            string folderName, 
+            string deliveryCompanyName)
+        {
+            try
+            {
+                Logger.LogInfo($"[IMAGE] Processing image from folder '{folderName}'...");
+
+                // Extract stickers (CPU-bound, synchronous operation)
+                var extractedStickers = _extractorService.DetectStickers(
+                    image.ImageBytes, 
+                    deliveryCompanyName);
+
+                if (extractedStickers == null || extractedStickers.Count == 0)
+                {
+                    Logger.LogInfo($"[IMAGE] No stickers found in image from folder '{folderName}'.");
+                    return new List<PackageDetails>();
+                }
+
+                Logger.LogInfo($"[IMAGE] Extracted {extractedStickers.Count} stickers from folder '{folderName}'.");
+
+                // Analyze all stickers in parallel
+                var allPackages = await AnalyzeAllStickersAsync(extractedStickers, folderName, deliveryCompanyName);
+
+                return allPackages;
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError($"[IMAGE] Error processing image from folder '{folderName}': {ex.Message}");
+                return new List<PackageDetails>();
+            }
+        }
+
+        private async Task<List<PackageDetails>> AnalyzeAllStickersAsync(
+            List<DetectionResponse> stickers, 
+            string folderName, 
+            string deliveryCompanyName)
+        {
+            var analysisTasks = stickers.Select(sticker => 
+                AnalyzeSingleStickerAsync(sticker, folderName, deliveryCompanyName));
+
+            var results = await Task.WhenAll(analysisTasks);
+
+            // Flatten all results into a single list
+            return results.SelectMany(r => r).ToList();
+        }
+
+        private async Task<List<PackageDetails>> AnalyzeSingleStickerAsync(
+            DetectionResponse sticker, 
+            string folderName, 
+            string deliveryCompanyName)
+        {
+            try
+            {
+                Logger.LogInfo($"[STICKER] Analyzing sticker '{sticker.LabelName}' from folder '{folderName}'...");
+
+                var packageDetails = await _analyser.AnalyzeSingleImageAsync(
+                    sticker, 
+                    deliveryCompanyName);
+
+                Logger.LogInfo($"[STICKER] Analysis returned {packageDetails.Count} packages for '{sticker.LabelName}'.");
+                foreach (var package in packageDetails)
+                {
+                    Logger.LogInfo($"[STICKER] Package details: {package}");
+                }
+                return packageDetails;
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError($"[STICKER] Error analyzing sticker '{sticker.LabelName}' from folder '{folderName}': {ex.Message}");
+                return new List<PackageDetails>();
+            }
+        }
     }
 }
