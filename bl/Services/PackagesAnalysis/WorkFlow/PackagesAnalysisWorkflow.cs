@@ -4,40 +4,41 @@ using CameraAnalyzer.bl.Services.PackagesAnalysis.MiddleServices;
 using CameraAnalyzer.bl.APIs;
 using CameraAnalyzer.bl.Models;
 using CameraAnalyzer.bl.Services.FtpPolling;
+using CameraAnalyzer.bl.Services.StickersExtractor.Workflow;
 
 namespace CameraAnalyzer.bl.Services.PackagesAnalysis.WorkFlow
 {
       public interface IPackagesAnalysisWorkflow
       {
-            Task<List<PackageDetails>> AnalyzeImagesAsync(List<ImageFromFtp> imagesFromFTP, string labelsCompany);
+            Task<List<PackageDetails>> AnalyzeImagesAsync(List<DetectionResponse> extractoredImages, string labelsCompany);
       }
       public class PackagesAnalysisWorkflow : IPackagesAnalysisWorkflow
       {
-            private readonly DetectionService _detector;
             private readonly GeminiLabelService _gemini;
             private readonly WorkflowOutputService _output;
 
             // All dependencies are injected from DI
             public PackagesAnalysisWorkflow(
-                DetectionService detector,
                 GeminiLabelService geminiLabelService,
                 WorkflowOutputService output)
             {
-                  _detector = detector;
                   _gemini = geminiLabelService;
                   _output = output;
             }
 
-            public async Task<List<PackageDetails>> AnalyzeImagesAsync(List<ImageFromFtp> imagesFromFTP, string labelsCompany)
+            // public async Task<List<PackageDetails>> AnalyzeImagesAsync(List<ImageFromFtp> imagesFromFTP, string labelsCompany)
+            public async Task<List<PackageDetails>> AnalyzeImagesAsync(List<DetectionResponse> extractoredImages, string labelsCompany)
             {
 
                   // Create a list of Tasks to process all images in parallel
-                  var tasks = imagesFromFTP.Select(async imageFromFTP =>
+                  var tasks = extractoredImages.Select(async extractoredImage =>
                   {
-                        Logger.LogInfo("Processing image: " + imageFromFTP.ImageName);
+                        Logger.LogInfo("Processing LabelName: " + extractoredImage.LabelName);
 
                         // 1) Detect packages in the image
-                        List<byte[]?> labelsImages = await _detector.DetectPackagesAsync(imageFromFTP, labelsCompany);
+                        List<byte[]?>? labelsImages = extractoredImage.ImageBase64 != null ? new List<byte[]?> { Convert.FromBase64String(extractoredImage.ImageBase64) } : null;
+                        
+                        
                         if (labelsImages == null)
                         {
                               // No packages found → return empty list for this image
@@ -48,13 +49,13 @@ namespace CameraAnalyzer.bl.Services.PackagesAnalysis.WorkFlow
                         // 2) Analyze all crops using Gemini
                         // time for Gemini analysis
                         var geminiStartTime = DateTime.UtcNow;
-                        Logger.LogInfo($"Detected {labelsImages.Count} potential packages in image '{imageFromFTP.ImageName}'. Starting Gemini analysis...");
+                        Logger.LogInfo($"Detected {labelsImages.Count} potential packages in image '{extractoredImage.LabelName}'. Starting Gemini analysis...");
                         List<List<PackageDetails>> geminiAnalysis = await _gemini.AnalyzeAllImagesAsync(labelsImages);
-                        Logger.LogInfo($"Gemini analysis completed for image '{imageFromFTP.ImageName}'. Found {geminiAnalysis.Sum(g => g.Count)} packages across all crops.");
+                        Logger.LogInfo($"👽 Gemini analysis completed for image '{extractoredImage.LabelName}'. Found {geminiAnalysis.Sum(g => g.Count)} packages across all crops.");
                         // time for Gemini analysis
                         var geminiEndTime = DateTime.UtcNow;
                         var geminiDuration = geminiEndTime - geminiStartTime;
-                        Logger.LogInfo($"<> Gemini analysis & string adapter time for image '{imageFromFTP.ImageName}': {geminiDuration.TotalSeconds} seconds.");
+                        Logger.LogInfo($"👽 Gemini analysis & string adapter time for image '{extractoredImage.LabelName}': {geminiDuration.TotalSeconds} seconds.");
                         if (geminiAnalysis == null)
                         {
                               return null;

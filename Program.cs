@@ -5,7 +5,10 @@ using CameraAnalyzer.bl.Services.FtpPolling;
 using CameraAnalyzer.bl.Services.FtpPolling.WorkFlow;
 using CameraAnalyzer.bl.Services.PackagesAnalysis.MiddleServices;
 // --- תוספת: using לשירות החדש ---
-using CameraAnalyzer.bl.Services.CompanyName; 
+using CameraAnalyzer.bl.Services.CompanyName;
+using CameraAnalyzer.bl.Services.StickersExtractor.Workflow;
+using CameraAnalyzer.bl.Models.DetectorModles.Labels;
+using CameraAnalyzer.bl.Services.StickersExtractor.MiddleServices;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -17,22 +20,27 @@ builder.Services.Configure<LabelsCompanyOptions>(
     builder.Configuration.GetSection("LabelsCompany"));
 
 
-// -------------------------
-// External APIs
-// -------------------------
-// AiDetector: uses custom BaseAddress
-builder.Services.AddHttpClient<AiDetectorAPI>(client =>
-{
-    client.BaseAddress = new Uri("http://localhost:5000");
-});
+
 
 // --- תוספת: רישום השירות החדש כ-Typed HttpClient ---
 builder.Services.AddHttpClient<ICompanyNameService, CompanyNameService>();
 
 // Services
-// (הערה: builder.Services.AddHttpClient<AiDetectorAPI>(); הופיע כאן שוב, מספיק הרישום למעלה)
+// 1. הגדרת רשימת המדבקות לטעינה (אפשר להביא מ-Configuration)
+var labelDefinitions = new List<InputLabelDefinition>
+{
+    new InputLabelDefinition("DHL", "prototypeLabels/DHL.jpg"),
+    new InputLabelDefinition("FED-EX", "prototypeLabels/FED-EX.jpg"),
+    new InputLabelDefinition("IsraelPostOffice", "prototypeLabels/IsraelPostOffice.jpg")
+};
 
-builder.Services.AddSingleton<DetectionService>();
+// 2. רישום ה-Detector כ-Singleton כי הוא טוען SIFT Features כבדים ב-Constructor
+builder.Services.AddSingleton(new StickersDetector(labelDefinitions));
+
+// 3. רישום ה-Service שמשתמש ב-Detector
+builder.Services.AddSingleton<StickersExtractorService>();
+
+// 4. רישום שאר שירותי הניתוח
 builder.Services.AddSingleton<GeminiLabelService>();
 builder.Services.AddSingleton<WorkflowOutputService>();
 

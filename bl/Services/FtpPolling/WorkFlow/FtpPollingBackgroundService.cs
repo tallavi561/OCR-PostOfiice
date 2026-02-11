@@ -3,6 +3,7 @@ using CameraAnalyzer.bl.Services.PackagesAnalysis.WorkFlow;
 using CameraAnalyzer.bl.Utils;
 using CameraAnalyzer.bl.Services.CompanyName;
 using CameraAnalyzer.bl.Models;
+using CameraAnalyzer.bl.Services.StickersExtractor.Workflow;
 namespace CameraAnalyzer.bl.Services.FtpPolling.WorkFlow
 {
     public class FtpPollingBackgroundService : BackgroundService
@@ -13,13 +14,16 @@ namespace CameraAnalyzer.bl.Services.FtpPolling.WorkFlow
         private readonly ICompanyNameService _companyNameService; // השירות החדש
         // Keeps track of folders that were already handled
         private readonly HashSet<string> _knownFolders = new HashSet<string>();
+        private readonly StickersExtractorService _extractorService;
 
         public FtpPollingBackgroundService(
+            StickersExtractorService extractorService,
             IFtpPollingService ftpPolling,
             IPackagesAnalysisWorkflow workflow,
             ICompanyNameService companyNameService,
             ILogger<FtpPollingBackgroundService> logger)
         {
+            _extractorService = extractorService;
             _ftpPolling = ftpPolling;
             _workflow = workflow;
             _logger = logger;
@@ -36,7 +40,7 @@ namespace CameraAnalyzer.bl.Services.FtpPolling.WorkFlow
                 {
                     // Step 1: get delivery company name
                     // Step 1: Find all current folders
-                    var folders = await _ftpPolling.GetCurrentFoldersAsync();
+                    var folders = await _ftpPolling.GetCurrentFoldersFromFtpAsync();
                     if (folders == null || !folders.Any())
                     {
                         Logger.LogDebug("[FTP] No folders found on FTP server.");
@@ -68,7 +72,7 @@ namespace CameraAnalyzer.bl.Services.FtpPolling.WorkFlow
                             try
                             {
                                 Logger.LogInfo($"[TASK] Start processing folder: {folder}");
-                                List<ImageFromFtp> imagesFromFTP = await _ftpPolling.DownloadFolderAsync(folder);
+                                List<ImageFromFtp> imagesFromFTP = await _ftpPolling.DownloadFolderFromFtpAsync(folder);
                                 if (imagesFromFTP.Count == 0)
                                 {
                                     Logger.LogInfo($"[FTP] Folder '{folder}' contained no images.");
@@ -77,8 +81,17 @@ namespace CameraAnalyzer.bl.Services.FtpPolling.WorkFlow
 
                                 await _ftpPolling.DeleteFolderAndContentsAsync(folder);
                                 
+                                List<DetectionResponse> extractoredImages = new();
+                                foreach (var image in imagesFromFTP)
+                                {
+                                    var extractoredImage =  _extractorService.DetectSticker(image.ImageBytes, deliveryCompanyName);
+                                    extractoredImages.AddRange(extractoredImage);
+                                }
+                                // extact the labels from images
+
+                                // analyze the labels with Gemini
                                 Logger.LogInfo($"[FTP] Downloaded {imagesFromFTP.Count} images from folder '{folder}'. Starting analysis...");
-                                List<PackageDetails> properties = await _workflow.AnalyzeImagesAsync(imagesFromFTP, deliveryCompanyName);
+                                List<PackageDetails> properties = await _workflow.AnalyzeImagesAsync(extractoredImages, deliveryCompanyName);
                                 Logger.LogInfo($"[FTP] Analysis returned {properties.Count} packages for folder '{folder}'.");
                                 // Log the results
                                 foreach (var prop in properties)

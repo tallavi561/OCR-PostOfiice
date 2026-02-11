@@ -6,11 +6,10 @@ namespace CameraAnalyzer.bl.Services.FtpPolling
 {
     public interface IFtpPollingService
     {
-        Task<List<ImageFromFtp>> DownloadFolderAsync(string folderName);
+        Task<List<ImageFromFtp>> DownloadFolderFromFtpAsync(string folderName);
 
-        Task<IEnumerable<string>> GetCurrentFoldersAsync();
-        Task DeleteFilesAsync(List<string> filePaths);
-        Task DeleteFolderImagesAsync(string folderName);
+        Task<IEnumerable<string>> GetCurrentFoldersFromFtpAsync();
+        Task DeleteFolderFromFtpAsync(string folderName);
         Task DeleteFolderAndContentsAsync(string folderName);
 
     }
@@ -33,7 +32,7 @@ namespace CameraAnalyzer.bl.Services.FtpPolling
             _pass = config["FtpConfig:Password"]!;
         }
 
-        public async Task<IEnumerable<string>> GetCurrentFoldersAsync()
+        public async Task<IEnumerable<string>> GetCurrentFoldersFromFtpAsync()
         {
             using (var client = new AsyncFtpClient(_host, _user, _pass))
             {
@@ -47,7 +46,7 @@ namespace CameraAnalyzer.bl.Services.FtpPolling
                     .ToList();
             }
         }
-        public async Task<List<ImageFromFtp>> DownloadFolderAsync(string folderName)
+        public async Task<List<ImageFromFtp>> DownloadFolderFromFtpAsync(string folderName)
         {
             List<ImageFromFtp> images = new List<ImageFromFtp>();
 
@@ -86,7 +85,7 @@ namespace CameraAnalyzer.bl.Services.FtpPolling
                         }
                         catch (Exception ex)
                         {
-                            Console.WriteLine($"[ERROR] Failed downloading {item.Name} | {ex.Message}");
+                            Logger.LogError($"[ERROR] Failed downloading {item.Name} | {ex.Message}");
                         }
                     }
                 }
@@ -94,35 +93,9 @@ namespace CameraAnalyzer.bl.Services.FtpPolling
 
             return images;
         }
-        public async Task DeleteFilesAsync(List<string> filePaths)
-        {
-            using (var client = new AsyncFtpClient(_host, _user, _pass))
-            {
-                await client.Connect();
+       
 
-                foreach (var path in filePaths)
-                {
-                    try
-                    {
-                        await client.DeleteFile(path);
-
-                        // verify
-                        bool exists = await client.FileExists(path);
-
-                        if (exists)
-                            Console.WriteLine($"[WARN] File still exists after delete: {path}");
-                        else
-                            Console.WriteLine($"[INFO] Successfully deleted: {path}");
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($"[ERROR] Failed deleting: {path} | {ex.Message}");
-                    }
-                }
-            }
-        }
-
-        public async Task DeleteFolderImagesAsync(string folderName)
+        public async Task DeleteFolderFromFtpAsync(string folderName)
         {
             using (var client = new AsyncFtpClient(_host, _user, _pass))
             {
